@@ -12,10 +12,6 @@ __all__ = [
     "ensure_rng",
 ]
 
-# Bit generators that can be reconstructed by name when restoring a
-# serialized generator state
-_BIT_GENERATORS = ("MT19937", "PCG64", "PCG64DXSM", "Philox", "SFC64")
-
 
 def deprecation_warning(msg):
     warnings.warn(msg, category=DeprecationWarning, stacklevel=2)
@@ -59,15 +55,15 @@ def random_state_to_generator(state):
         generator carrying the legacy state.
 
     """
-    bit_generator = np.random.MT19937()
-    bit_generator.state = {
-        "bit_generator": "MT19937",
-        "state": {
-            "key": np.asarray(state[1], dtype=np.uint32),
-            "pos": int(state[2]),
-        },
-    }
-    return np.random.Generator(bit_generator)
+    return generator_from_state(
+        {
+            "bit_generator": "MT19937",
+            "state": {
+                "key": np.asarray(state[1], dtype=np.uint32),
+                "pos": int(state[2]),
+            },
+        }
+    )
 
 
 def generator_from_state(state):
@@ -75,18 +71,42 @@ def generator_from_state(state):
 
     Args:
         state (dict): A bit generator state dict, as returned by
-            ``Generator.bit_generator.state``.
+            ``Generator.bit_generator.state``. The named bit generator
+            must be one provided by ``numpy.random``; third-party bit
+            generators cannot be reconstructed by name.
 
     Returns:
         numpy.random.Generator: A generator carrying the given state.
 
     """
     name = state["bit_generator"]
-    if name not in _BIT_GENERATORS:
+    bit_generator_cls = getattr(np.random, name, None)
+    if not (
+        isinstance(bit_generator_cls, type)
+        and issubclass(bit_generator_cls, np.random.BitGenerator)
+    ):
         raise ValueError(f"unknown bit generator: {name!r}")
-    bit_generator = getattr(np.random, name)()
+    bit_generator = bit_generator_cls()
     bit_generator.state = state
     return np.random.Generator(bit_generator)
+
+
+def stored_state_to_generator(state):
+    """Convert a stored random state to a ``numpy.random.Generator``
+
+    Args:
+        state: Either a bit generator state dict (as returned by
+            ``Generator.bit_generator.state``) or a legacy
+            ``RandomState.get_state()`` tuple/list written by an older
+            version of emcee.
+
+    Returns:
+        numpy.random.Generator: A generator carrying the given state.
+
+    """
+    if isinstance(state, dict):
+        return generator_from_state(state)
+    return random_state_to_generator(state)
 
 
 def deprecated(alternate):

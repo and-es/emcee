@@ -15,8 +15,7 @@ from .utils import (
     deprecated,
     deprecation_warning,
     ensure_rng,
-    generator_from_state,
-    random_state_to_generator,
+    stored_state_to_generator,
 )
 
 __all__ = ["EnsembleSampler", "walkers_independent"]
@@ -182,11 +181,22 @@ class EnsembleSampler(object):
         # argument takes precedence over a state stored in the backend
         if rng is not None or state is None:
             self._random = ensure_rng(rng)
-        elif isinstance(state, dict):
-            self._random = generator_from_state(state)
         else:
-            # A legacy RandomState tuple stored by an older emcee version
-            self._random = random_state_to_generator(state)
+            try:
+                self._random = stored_state_to_generator(state)
+            except (TypeError, ValueError, IndexError, KeyError):
+                warnings.warn(
+                    "The random state stored in the backend could not be "
+                    "restored; sampling will continue with a fresh "
+                    "generator",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                self._random = ensure_rng(rng)
+                # Don't re-apply the broken state when sampling resumes
+                # from the last stored sample
+                if getattr(self, "_previous_state", None) is not None:
+                    self._previous_state.random_state = None
 
         # Do a little bit of _magic_ to make the likelihood call with
         # ``args`` and ``kwargs`` pickleable.
@@ -270,17 +280,7 @@ class EnsembleSampler(object):
         if state is None:
             return
         try:
-            if isinstance(state, dict):
-                bit_generator = self._random.bit_generator
-                if state["bit_generator"] == type(bit_generator).__name__:
-                    # Update in place so that existing references to the
-                    # generator (e.g. an in-flight ``Model``) see the state
-                    bit_generator.state = state
-                else:
-                    self._random = generator_from_state(state)
-            else:
-                # A legacy RandomState.get_state() tuple
-                self._random = random_state_to_generator(state)
+            self._random = stored_state_to_generator(state)
         except (TypeError, ValueError, IndexError, KeyError):
             warnings.warn(
                 "Invalid random state ignored; the sampler's random number "
@@ -441,9 +441,6 @@ class EnsembleSampler(object):
             map_fn = self.pool.map
         else:
             map_fn = map
-        model = Model(
-            self.log_prob_fn, self.compute_log_prob, map_fn, self._random
-        )
         if progress_kwargs is None:
             progress_kwargs = {}
 
@@ -453,6 +450,16 @@ class EnsembleSampler(object):
             i = 0
             for _ in count() if iterations is None else range(iterations):
                 for _ in range(yield_step):
+                    # Rebuild the model wrapper every step so that a
+                    # generator swapped in through the ``random_state``
+                    # setter mid-run is picked up by the moves
+                    model = Model(
+                        self.log_prob_fn,
+                        self.compute_log_prob,
+                        map_fn,
+                        self._random,
+                    )
+
                     # Choose a random move
                     move = self._moves[
                         self._random.choice(len(self._moves), p=self._weights)

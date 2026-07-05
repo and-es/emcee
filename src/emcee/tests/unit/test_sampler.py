@@ -433,10 +433,11 @@ def test_deprecated_log_prob0(nwalkers=32, ndim=3, seed=1234):
 
 
 def test_deprecated_rstate0(nwalkers=32, ndim=3):
-    def one_step(rstate0):
+    def one_step(global_seed, rstate0):
         coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
-        # Each sampler starts from a different (unseeded) generator, so
-        # the runs only agree because ``rstate0`` overrides it.
+        # Perturb the global RNG differently per call to prove that the
+        # sampler stream depends only on ``rstate0``, not global state.
+        np.random.seed(global_seed)
         sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
         with pytest.warns(DeprecationWarning, match="rstate0"):
             state = next(
@@ -447,7 +448,7 @@ def test_deprecated_rstate0(nwalkers=32, ndim=3):
         return state.coords
 
     rstate0 = np.random.mtrand.RandomState(42).get_state()
-    assert np.allclose(one_step(rstate0), one_step(rstate0))
+    assert np.allclose(one_step(1, rstate0), one_step(2, rstate0))
 
 
 def test_deprecated_blobs0(nwalkers=32, ndim=3, seed=1234):
@@ -567,6 +568,32 @@ def test_random_state_setter(nwalkers=32, ndim=3):
     assert new["bit_generator"] == "MT19937"
     assert np.array_equal(new["state"]["key"], legacy[1])
     assert new["state"]["pos"] == legacy[2]
+
+
+def test_random_state_set_mid_run(nwalkers=32, ndim=3):
+    # A state set through the setter between two steps of a running
+    # ``sample()`` generator must drive the following proposals.
+    coords = np.random.default_rng(0).standard_normal((nwalkers, ndim))
+    mt_state = np.random.Generator(np.random.MT19937(7)).bit_generator.state
+
+    sampler1 = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=100)
+    gen = sampler1.sample(coords, iterations=2, store=False)
+    mid = next(gen)
+    # Copy the midpoint: the moves update the yielded State in place
+    mid_coords = np.copy(mid.coords)
+    mid_log_prob = np.copy(mid.log_prob)
+    sampler1.random_state = mt_state
+    final1 = next(gen)
+
+    # A fresh sampler continuing from the same midpoint with the same
+    # state must produce the same step.
+    sampler2 = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=200)
+    sampler2.random_state = mt_state
+    final2 = sampler2.run_mcmc(
+        State(mid_coords, log_prob=mid_log_prob), 1, store=False
+    )
+
+    assert np.allclose(final1.coords, final2.coords)
 
 
 def test_rng_reproducibility(nwalkers=32, ndim=3):

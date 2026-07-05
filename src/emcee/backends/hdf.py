@@ -48,6 +48,10 @@ def _json_default(obj):
         return obj.tolist()
     if isinstance(obj, np.integer):
         return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
     raise TypeError(
         f"Object of type {type(obj).__name__} is not JSON serializable"
     )
@@ -282,13 +286,14 @@ class HDFBackend(Backend):
                 g["blobs"][iteration, :] = state.blobs
             g["accepted"][:] += accepted
 
+            if "random_state" not in g.attrs:
+                # First save after resuming a file written by an older
+                # version of emcee: drop the legacy per-element attributes
+                for k in [k for k in g.attrs if k.startswith("random_state_")]:
+                    del g.attrs[k]
             g.attrs["random_state"] = json.dumps(
                 state.random_state, default=_json_default
             )
-            # Clean up the legacy per-element attributes left behind when
-            # resuming a file written by an older version of emcee
-            for k in [k for k in g.attrs if k.startswith("random_state_")]:
-                del g.attrs[k]
 
             g.attrs["iteration"] = iteration + 1
 

@@ -259,6 +259,57 @@ def test_legacy_random_state_migration():
 
 
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_corrupt_random_state_warns_on_resume():
+    # A stored state that cannot be restored (truncated legacy attrs or
+    # an unknown bit generator) must warn exactly once and fall back to
+    # a fresh generator instead of crashing construction
+    import json
+
+    # Truncated legacy attribute set
+    with backends.TempHDFBackend() as b:
+        run_sampler(b, nsteps=3)
+        with h5py.File(b.filename, "a") as f:
+            g = f[b.name]
+            del g.attrs["random_state"]
+            g.attrs["random_state_0"] = "MT19937"
+        with pytest.warns(RuntimeWarning, match="could not be restored"):
+            sampler = EnsembleSampler(32, 3, normal_log_prob_blobs, backend=b)
+        sampler.run_mcmc(None, 1)
+
+    # Unknown bit generator name in the new format
+    with backends.TempHDFBackend() as b:
+        run_sampler(b, nsteps=3)
+        with h5py.File(b.filename, "a") as f:
+            f[b.name].attrs["random_state"] = json.dumps(
+                {"bit_generator": "NotABitGenerator", "state": {}}
+            )
+        with pytest.warns(RuntimeWarning, match="could not be restored"):
+            sampler = EnsembleSampler(32, 3, normal_log_prob_blobs, backend=b)
+        sampler.run_mcmc(None, 1)
+
+
+def test_json_default_numpy_scalars():
+    # Bit generator states from third-party generators may contain numpy
+    # scalar types beyond int/ndarray
+    import json
+
+    from emcee.backends.hdf import _json_default
+
+    payload = {
+        "i": np.int64(3),
+        "f": np.float64(1.5),
+        "b": np.bool_(True),
+        "arr": np.arange(3, dtype=np.uint32),
+    }
+    result = json.loads(json.dumps(payload, default=_json_default))
+    assert result == {"i": 3, "f": 1.5, "b": True, "arr": [0, 1, 2]}
+
+    with pytest.raises(TypeError, match="not JSON serializable"):
+        json.dumps({"x": object()}, default=_json_default)
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
 def test_multi_hdf5():
     with backends.TempHDFBackend() as backend1:
         run_sampler(backend1)
