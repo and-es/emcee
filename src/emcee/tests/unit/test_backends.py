@@ -99,7 +99,8 @@ def test_blob_usage_errors(backend):
 
 
 @pytest.mark.parametrize(
-    "backend,dtype,blobs", product(other_backends, dtypes, [True, False])
+    "backend,dtype,blobs",
+    list(product(other_backends, dtypes, [True, False])),
 )
 def test_backend(backend, dtype, blobs):
     # Run a sampler with the default backend.
@@ -139,7 +140,9 @@ def test_backend(backend, dtype, blobs):
         assert np.allclose(a, b), "inconsistent acceptance fraction"
 
 
-@pytest.mark.parametrize("backend,dtype", product(other_backends, dtypes))
+@pytest.mark.parametrize(
+    "backend,dtype", list(product(other_backends, dtypes))
+)
 def test_reload(backend, dtype):
     with backend() as backend1:
         run_sampler(backend1, dtype=dtype)
@@ -183,7 +186,9 @@ def test_reload(backend, dtype):
         assert np.allclose(a, b), "inconsistent accepted"
 
 
-@pytest.mark.parametrize("backend,dtype", product(other_backends, dtypes))
+@pytest.mark.parametrize(
+    "backend,dtype", list(product(other_backends, dtypes))
+)
 def test_restart(backend, dtype):
     # Run a sampler with the default backend.
     b = backends.Backend()

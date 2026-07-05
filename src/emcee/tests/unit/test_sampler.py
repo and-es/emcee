@@ -19,14 +19,19 @@ def normal_log_prob(params):
 
 @pytest.mark.parametrize(
     "backend, moves",
-    product(
-        all_backends,
-        [
-            None,
-            moves.GaussianMove(0.5),
-            [moves.StretchMove(), moves.GaussianMove(0.5)],
-            [(moves.StretchMove(), 0.3), (moves.GaussianMove(0.5), 0.1)],
-        ],
+    list(
+        product(
+            all_backends,
+            [
+                None,
+                moves.GaussianMove(0.5),
+                [moves.StretchMove(), moves.GaussianMove(0.5)],
+                [
+                    (moves.StretchMove(), 0.3),
+                    (moves.GaussianMove(0.5), 0.1),
+                ],
+            ],
+        )
     ),
 )
 def test_shapes(backend, moves, nwalkers=32, ndim=3, nsteps=10, seed=1234):
@@ -171,7 +176,7 @@ def test_thin(backend):
 
 
 @pytest.mark.parametrize(
-    "backend,progress", product(all_backends, [True, False])
+    "backend,progress", list(product(all_backends, [True, False]))
 )
 def test_thin_by(backend, progress):
     with backend() as be:

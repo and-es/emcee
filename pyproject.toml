@@ -47,6 +47,10 @@ where = ["src"]
 version_file = "src/emcee/emcee_version.py"
 version_file_template = "__version__ = \"{version}\"\n"
 
+[tool.pytest.ini_options]
+testpaths = ["src/emcee/tests"]
+filterwarnings = ["error::DeprecationWarning"]
+
 [tool.black]
 line-length = 79
 exclude = '''
