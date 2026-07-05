@@ -72,6 +72,10 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          # This job only runs `uvx coveralls --finish` without a
+          # checkout, so there is nothing to cache or hash.
+          enable-cache: false
+          ignore-empty-workdir: true
       - name: Finish coverage collection
         run: uvx coveralls --finish
         env:
@@ -85,8 +89,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-suffix: ${{ github.job }}
       - name: Cache pre-commit environments
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -104,6 +109,7 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
+          cache-suffix: ${{ github.job }}
       - name: Install dependencies
         run: uv sync --all-extras
       - name: Type-check the code
@@ -119,6 +125,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
+          cache-suffix: ${{ github.job }}
       - name: Build sdist and wheel
         run: uv build
       - uses: actions/upload-artifact@v7
