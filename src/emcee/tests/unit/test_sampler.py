@@ -234,6 +234,20 @@ def test_pickle(backend):
             assert np.allclose(a, b), "inconsistent {0}".format(k)
 
 
+def test_pickle_preserves_pool():
+    # Pickling discards the pool from the copy, but it must not remove it
+    # from the live sampler.
+    class FakePool:
+        def map(self, func, iterable):
+            return map(func, iterable)
+
+    pool = FakePool()
+    sampler = EnsembleSampler(32, 3, normal_log_prob, pool=pool)
+    pickled = pickle.loads(pickle.dumps(sampler, -1))
+    assert sampler.pool is pool
+    assert pickled.pool is None
+
+
 @pytest.mark.parametrize("nwalkers, ndim", [(10, 2), (20, 5)])
 def test_walkers_dependent_ones(nwalkers, ndim):
     assert not walkers_independent(np.ones((nwalkers, ndim)))

@@ -27,14 +27,17 @@ def does_hdf5_support_longdouble():
     ) as f:
         f.close()
 
-        with h5py.File(f.name, "w") as hf:
-            g = hf.create_group("group")
-            g.create_dataset("data", data=np.ones(1, dtype=np.longdouble))
-            if g["data"].dtype != np.longdouble:
-                return False
-        with h5py.File(f.name, "r") as hf:
-            if hf["group"]["data"].dtype != np.longdouble:
-                return False
+        try:
+            with h5py.File(f.name, "w") as hf:
+                g = hf.create_group("group")
+                g.create_dataset("data", data=np.ones(1, dtype=np.longdouble))
+                if g["data"].dtype != np.longdouble:
+                    return False
+            with h5py.File(f.name, "r") as hf:
+                if hf["group"]["data"].dtype != np.longdouble:
+                    return False
+        finally:
+            os.remove(f.name)
     return True
 
 
