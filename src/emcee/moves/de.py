@@ -36,8 +36,9 @@ class DEMove(RedBlueMove):
             ndim = coords.shape[1]
             self.g0 = 2.38 / np.sqrt(2 * ndim)
 
-    def get_proposal(self, s, c, random):
-        c = np.concatenate(c, axis=0)
+    def get_proposal(self, sample, complement, random):
+        s = sample
+        c = np.concatenate(complement, axis=0)
         ns, ndim = s.shape
         nc = c.shape[0]
 

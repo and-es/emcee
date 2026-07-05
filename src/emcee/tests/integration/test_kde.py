@@ -1,7 +1,7 @@
 try:
     import scipy
 except ImportError:
-    scipy = None
+    scipy = None  # ty: ignore[invalid-assignment]
 import pytest
 
 from emcee import moves

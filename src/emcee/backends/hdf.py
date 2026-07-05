@@ -13,7 +13,7 @@ __all__ = ["HDFBackend", "TempHDFBackend", "does_hdf5_support_longdouble"]
 try:
     import h5py
 except ImportError:
-    h5py = None
+    h5py = None  # ty: ignore[invalid-assignment]
 
 
 def does_hdf5_support_longdouble():
@@ -316,4 +316,5 @@ class TempHDFBackend:
         )
 
     def __exit__(self, exception_type, exception_value, traceback):
-        os.remove(self.filename)
+        # ``self.filename`` is set in ``__enter__``
+        os.remove(self.filename)  # ty: ignore[invalid-argument-type]

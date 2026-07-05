@@ -37,7 +37,7 @@ class TestNamedParameters(TestCase):
     """
 
     # Keyword based lnpdf
-    def lnpdf(self, pars) -> np.float64:
+    def lnpdf(self, pars):
         mean = pars["mean"]
         var = pars["var"]
         if var <= 0:
@@ -46,7 +46,7 @@ class TestNamedParameters(TestCase):
             -0.5 * ((mean - self.x) ** 2 / var + np.log(2 * np.pi * var)).sum()
         )
 
-    def lnpdf_mixture(self, pars) -> np.float64:
+    def lnpdf_mixture(self, pars):
         mean1 = pars["mean1"]
         var1 = pars["var1"]
         mean2 = pars["mean2"]
@@ -63,7 +63,7 @@ class TestNamedParameters(TestCase):
             ).sum()
         )
 
-    def lnpdf_mixture_grouped(self, pars) -> np.float64:
+    def lnpdf_mixture_grouped(self, pars):
         mean1, mean2 = pars["means"]
         var1, var2 = pars["vars"]
         const = pars["constant"]
@@ -103,7 +103,7 @@ class TestNamedParameters(TestCase):
                 nwalkers=10,
                 ndim=len(self.names),
                 log_prob_fn=self.lnpdf,
-                parameter_names=42,
+                parameter_names=42,  # ty: ignore[invalid-argument-type]
             )
 
         # ndim name mismatch

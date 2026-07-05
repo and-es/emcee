@@ -10,7 +10,7 @@ from emcee.backends.hdf import does_hdf5_support_longdouble
 try:
     import h5py
 except ImportError:
-    h5py = None
+    h5py = None  # ty: ignore[invalid-assignment]
 
 __all__ = ["test_backend", "test_reload"]
 
@@ -244,8 +244,13 @@ def test_legacy_random_state_migration():
         sampler = EnsembleSampler(32, 3, normal_log_prob_blobs, backend=b)
         state = sampler.random_state
         assert state["bit_generator"] == "MT19937"
-        assert np.array_equal(state["state"]["key"], legacy[1])
-        assert state["state"]["pos"] == legacy[2]
+        # numpy stubs type get_state() as a dict, but legacy=True
+        # returns a tuple
+        assert np.array_equal(
+            state["state"]["key"],
+            legacy[1],  # ty: ignore[invalid-argument-type]
+        )
+        assert state["state"]["pos"] == legacy[2]  # ty: ignore[invalid-argument-type]
 
         # After another step the file uses the new format only
         sampler.run_mcmc(None, 1)

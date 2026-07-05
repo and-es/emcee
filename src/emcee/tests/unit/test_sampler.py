@@ -9,7 +9,7 @@ from emcee import EnsembleSampler, State, backends, moves, walkers_independent
 try:
     import tqdm
 except ImportError:
-    tqdm = None
+    tqdm = None  # ty: ignore[invalid-assignment]
 
 __all__ = ["test_shapes", "test_errors", "test_thin", "test_vectorize"]
 
@@ -564,8 +564,13 @@ def test_random_state_setter(nwalkers=32, ndim=3):
     sampler.random_state = legacy
     new = sampler.random_state
     assert new["bit_generator"] == "MT19937"
-    assert np.array_equal(new["state"]["key"], legacy[1])
-    assert new["state"]["pos"] == legacy[2]
+    # numpy stubs type get_state() as a dict, but legacy=True returns
+    # a tuple
+    assert np.array_equal(
+        new["state"]["key"],
+        legacy[1],  # ty: ignore[invalid-argument-type]
+    )
+    assert new["state"]["pos"] == legacy[2]  # ty: ignore[invalid-argument-type]
 
 
 def test_random_state_set_mid_run(nwalkers=32, ndim=3):

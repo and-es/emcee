@@ -53,16 +53,16 @@ def test_indexing(seed=1234):
 
     state = State(coords, log_prob, blobs, rstate)
     np.testing.assert_allclose(state[0], state.coords)
-    np.testing.assert_allclose(state[1], state.log_prob)
+    np.testing.assert_allclose(state[1], state.log_prob)  # ty: ignore[no-matching-overload]
     check_rstate(state[2], state.random_state)
-    np.testing.assert_allclose(state[3], state.blobs)
-    np.testing.assert_allclose(state[-1], state.blobs)
+    np.testing.assert_allclose(state[3], state.blobs)  # ty: ignore[no-matching-overload]
+    np.testing.assert_allclose(state[-1], state.blobs)  # ty: ignore[no-matching-overload]
     with pytest.raises(IndexError):
         state[4]
 
     state = State(coords, log_prob, random_state=rstate)
     np.testing.assert_allclose(state[0], state.coords)
-    np.testing.assert_allclose(state[1], state.log_prob)
+    np.testing.assert_allclose(state[1], state.log_prob)  # ty: ignore[no-matching-overload]
     check_rstate(state[2], state.random_state)
     check_rstate(state[-1], state.random_state)
     with pytest.raises(IndexError):

@@ -1,5 +1,5 @@
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from itertools import count
 from typing import Optional, Union
 
@@ -24,7 +24,9 @@ try:
     from numpy.exceptions import VisibleDeprecationWarning
 except ImportError:
     # Fallback to the top-level numpy import (for older versions)
-    from numpy import VisibleDeprecationWarning
+    from numpy import (
+        VisibleDeprecationWarning,  # ty: ignore[unresolved-import]
+    )
 
 
 class EnsembleSampler:
@@ -94,7 +96,9 @@ class EnsembleSampler:
         backend=None,
         vectorize=False,
         blobs_dtype=None,
-        parameter_names: Optional[Union[dict[str, int], list[str]]] = None,
+        parameter_names: Optional[
+            Union[dict[str, Union[int, list[int]]], list[str]]
+        ] = None,
         rng=None,
         # Deprecated...
         a=None,
@@ -187,8 +191,9 @@ class EnsembleSampler:
                 self._random = ensure_rng(rng)
                 # Don't re-apply the broken state when sampling resumes
                 # from the last stored sample
-                if getattr(self, "_previous_state", None) is not None:
-                    self._previous_state.random_state = None
+                previous_state = getattr(self, "_previous_state", None)
+                if previous_state is not None:
+                    previous_state.random_state = None
 
         # Do a little bit of _magic_ to make the likelihood call with
         # ``args`` and ``kwargs`` pickleable.
@@ -743,7 +748,7 @@ def _scaled_cond(a):
 
 
 def ndarray_to_list_of_dicts(
-    x: np.ndarray, key_map: dict[str, Union[int, list[int]]]
+    x: np.ndarray, key_map: Mapping[str, Union[int, list[int]]]
 ) -> list[dict[str, Union[np.number, np.ndarray]]]:
     """
     A helper function to convert a ``np.ndarray`` into a list
@@ -770,4 +775,7 @@ def _scalar(fx):
             raise ValueError("log_prob_fn should return scalar") from e
         return float(fx)
     else:
-        return float(fx)
+        # ``np.isscalar`` narrows ``fx`` to a union that includes
+        # ``complex``; a complex log-probability raising TypeError at
+        # runtime is the desired behavior
+        return float(fx)  # ty: ignore[invalid-argument-type]

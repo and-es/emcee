@@ -22,13 +22,14 @@ class WalkMove(RedBlueMove):
         self.s = s
         super().__init__(**kwargs)
 
-    def get_proposal(self, s, c, random):
-        c = np.concatenate(c, axis=0)
+    def get_proposal(self, sample, complement, random):
+        s = sample
+        c = np.concatenate(complement, axis=0)
         Ns, Nc = len(s), len(c)
         q = np.empty_like(s)
         s0 = Nc if self.s is None else self.s
         for i in range(Ns):
             inds = random.choice(Nc, s0, replace=False)
-            cov = np.atleast_2d(np.cov(c[inds], rowvar=0))
+            cov = np.atleast_2d(np.cov(c[inds], rowvar=False))
             q[i] = random.multivariate_normal(s[i], cov)
         return q, np.zeros(Ns, dtype=np.float64)

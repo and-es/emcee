@@ -26,7 +26,8 @@ class DESnookerMove(RedBlueMove):
         kwargs["nsplits"] = 4
         super().__init__(**kwargs)
 
-    def get_proposal(self, s, c, random):
+    def get_proposal(self, sample, complement, random):
+        s, c = sample, complement
         Ns = len(s)
         Nc = list(map(len, c))
         ndim = s.shape[1]

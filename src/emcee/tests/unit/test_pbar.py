@@ -4,8 +4,10 @@ from emcee.pbar import _NoOpPBar, get_progress_bar
 
 try:
     import tqdm
+    import tqdm.asyncio
+    import tqdm.notebook
 except ImportError:
-    tqdm = None
+    tqdm = None  # ty: ignore[invalid-assignment]
 
 
 def test_display_false():

@@ -51,6 +51,16 @@ version_file_template = "__version__ = \"{version}\"\n"
 testpaths = ["src/emcee/tests"]
 filterwarnings = ["error::DeprecationWarning"]
 
+[tool.ty.src]
+include = ["src"]
+# emcee 2.x compatibility shims kept only for backwards compatibility;
+# they import optional packages that are not part of any extra.
+exclude = [
+    "src/emcee/interruptible_pool.py",
+    "src/emcee/mpi_pool.py",
+    "src/emcee/ptsampler.py",
+]
+
 [tool.ruff]
 line-length = 79
 target-version = "py39"

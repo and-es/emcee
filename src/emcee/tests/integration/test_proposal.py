@@ -5,7 +5,7 @@ import emcee
 try:
     from scipy import stats
 except ImportError:
-    stats = None
+    stats = None  # ty: ignore[invalid-assignment]
 
 
 __all__ = ["_test_normal", "_test_uniform"]

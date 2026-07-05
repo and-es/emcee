@@ -5,7 +5,7 @@ from .red_blue import RedBlueMove
 try:
     from scipy.stats import gaussian_kde
 except ImportError:
-    gaussian_kde = None
+    gaussian_kde = None  # ty: ignore[invalid-assignment]
 
 
 __all__ = ["KDEMove"]
@@ -33,8 +33,9 @@ class KDEMove(RedBlueMove):
         self.bw_method = bw_method
         super().__init__(**kwargs)
 
-    def get_proposal(self, s, c, random):
-        c = np.concatenate(c, axis=0)
+    def get_proposal(self, sample, complement, random):
+        s = sample
+        c = np.concatenate(complement, axis=0)
         kde = gaussian_kde(c.T, bw_method=self.bw_method)
         q = kde.resample(len(s), random)
         factor = kde.logpdf(s.T) - kde.logpdf(q)

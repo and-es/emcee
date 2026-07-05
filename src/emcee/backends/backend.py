@@ -215,7 +215,11 @@ class Backend:
         self.chain[self.iteration, :, :] = state.coords
         self.log_prob[self.iteration, :] = state.log_prob
         if state.blobs is not None:
-            self.blobs[self.iteration, :] = state.blobs
+            # ``self.blobs`` is initialized whenever the chain stores
+            # blobs, which ``_check`` has already verified
+            self.blobs[self.iteration, :] = (  # ty: ignore[invalid-assignment]
+                state.blobs
+            )
         self.accepted += accepted
         self.random_state = state.random_state
         self.iteration += 1

@@ -9,7 +9,7 @@ try:
     import tqdm
     import tqdm.auto
 except ImportError:
-    tqdm = None
+    tqdm = None  # ty: ignore[invalid-assignment]
 
 
 class _NoOpPBar:
