@@ -40,12 +40,21 @@ Source = "https://github.com/dfm/emcee"
 extras = ["h5py", "scipy", "tqdm", "ipywidgets"]
 tests = ["pytest", "pytest-cov", "coverage[toml]"]
 
+[dependency-groups]
+dev = ["ty", "pre-commit", "coverage[toml]"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools_scm]
 version_file = "src/emcee/emcee_version.py"
 version_file_template = "__version__ = \"{version}\"\n"
+
+[tool.uv]
+# The version comes from setuptools_scm, so the cached build of the
+# project must be invalidated when the git state changes, not only when
+# pyproject.toml does.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
 [tool.pytest.ini_options]
 testpaths = ["src/emcee/tests"]

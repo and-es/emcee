@@ -5,6 +5,7 @@
 *.pyc
 *.so
 venv*
+.venv/
 build/*
 
 dist
