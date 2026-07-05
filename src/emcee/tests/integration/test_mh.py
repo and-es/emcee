@@ -25,9 +25,8 @@ def test_normal_mh(blobs, **kwargs):
 
 
 def test_mh_ndim_mismatch(seed=1234):
-    np.random.seed(seed)
     nwalkers, ndim = 32, 3
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = emcee.EnsembleSampler(
         nwalkers,
         ndim,

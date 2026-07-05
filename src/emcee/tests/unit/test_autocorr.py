@@ -12,12 +12,12 @@ from emcee.autocorr import (
 
 
 def get_chain(seed=1234, ndim=3, N=100000):
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
     a = 0.9
     x = np.empty((N, ndim))
     x[0] = np.zeros(ndim)
     for i in range(1, N):
-        x[i] = x[i - 1] * a + np.random.rand(ndim)
+        x[i] = x[i - 1] * a + rng.random(ndim)
     return x
 
 
@@ -64,8 +64,7 @@ def test_auto_window_no_crossing():
 
 
 def test_autocorr_multi_works():
-    np.random.seed(42)
-    xs = np.random.randn(16384, 2)
+    xs = np.random.default_rng(42).standard_normal((16384, 2))
 
     acls_multi = integrated_time(xs[:, np.newaxis])
     acls_single = np.array(

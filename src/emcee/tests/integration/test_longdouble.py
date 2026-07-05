@@ -9,10 +9,10 @@ def test_longdouble_doesnt_crash_bug_312():
     def log_prob(x, ivar):
         return -0.5 * np.sum(ivar * x**2)
 
-    np.random.seed(0)
+    rng = np.random.default_rng(0)
     ndim, nwalkers = 5, 20
-    ivar = 1.0 / np.random.rand(ndim).astype(np.longdouble)
-    p0 = np.random.randn(nwalkers, ndim).astype(np.longdouble)
+    ivar = 1.0 / rng.random(ndim).astype(np.longdouble)
+    p0 = rng.standard_normal((nwalkers, ndim)).astype(np.longdouble)
 
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[ivar])
     sampler.run_mcmc(p0, 100)

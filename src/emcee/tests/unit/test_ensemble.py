@@ -20,7 +20,7 @@ class TestNP2ListOfDicts(TestCase):
             key_dict = {key: i for i, key in enumerate(keys)}
             # Try different number of walker/procs
             for N in [1, 2, 3, 10, 100]:
-                x = np.random.rand(N, n_keys)
+                x = np.random.default_rng(1234).random((N, n_keys))
 
                 LOD = ndarray_to_list_of_dicts(x, key_dict)
                 assert len(LOD) == N, "need 1 dict per row"
@@ -82,7 +82,8 @@ class TestNamedParameters(TestCase):
 
     def setUp(self):
         # Draw some data from a unit Gaussian
-        self.x = np.random.randn(100)
+        self.rng = np.random.default_rng(1234)
+        self.x = self.rng.standard_normal(100)
         self.names = ["mean", "var"]
 
     def test_named_parameters(self):
@@ -160,7 +161,7 @@ class TestNamedParameters(TestCase):
                 log_prob_fn=self.lnpdf,
                 parameter_names=self.names,
             )
-            coords = np.random.rand(N, len(self.names))
+            coords = self.rng.random((N, len(self.names)))
             lnps, _ = sampler.compute_log_prob(coords)
             assert len(lnps) == N
             assert lnps.dtype == np.float64
@@ -175,7 +176,7 @@ class TestNamedParameters(TestCase):
                 log_prob_fn=self.lnpdf_mixture,
                 parameter_names=names,
             )
-            coords = np.random.rand(N, len(names))
+            coords = self.rng.random((N, len(names)))
             lnps, _ = sampler.compute_log_prob(coords)
             assert len(lnps) == N
             assert lnps.dtype == np.float64
@@ -190,7 +191,7 @@ class TestNamedParameters(TestCase):
                 log_prob_fn=self.lnpdf_mixture_grouped,
                 parameter_names=names,
             )
-            coords = np.random.rand(N, 5)
+            coords = self.rng.random((N, 5))
             lnps, _ = sampler.compute_log_prob(coords)
             assert len(lnps) == N
             assert lnps.dtype == np.float64
@@ -204,7 +205,7 @@ class TestNamedParameters(TestCase):
             log_prob_fn=self.lnpdf,
             parameter_names=self.names,
         )
-        guess = np.random.rand(n_walkers, len(self.names))
+        guess = self.rng.random((n_walkers, len(self.names)))
         n_steps = 50
         results = sampler.run_mcmc(guess, n_steps)
         assert results.coords.shape == (n_walkers, len(self.names))

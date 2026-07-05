@@ -44,6 +44,7 @@ def test_deprecated_decorator_no_alternate():
 
 
 def test_sample_ball(seed=1234):
+    # The deprecated helper itself draws from the global numpy RNG
     np.random.seed(seed)
     p0 = np.array([1.0, 10.0, -4.0])
     std = np.array([0.1, 0.5, 0.01])
@@ -55,6 +56,7 @@ def test_sample_ball(seed=1234):
 
 
 def test_sample_ellipsoid(seed=1234):
+    # The deprecated helper itself draws from the global numpy RNG
     np.random.seed(seed)
     p0 = np.array([1.0, -2.0])
     covmat = np.array([[1.0, 0.5], [0.5, 2.0]])

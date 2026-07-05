@@ -41,11 +41,11 @@ def normal_log_prob(params):
 )
 def test_shapes(backend, moves, nwalkers=32, ndim=3, nsteps=10, seed=1234):
     # Set up the random number generator.
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     with backend() as be:
         # Initialize the ensemble, moves and sampler.
-        coords = np.random.randn(nwalkers, ndim)
+        coords = rng.standard_normal((nwalkers, ndim))
         sampler = EnsembleSampler(
             nwalkers, ndim, normal_log_prob, moves=moves, backend=be
         )
@@ -97,11 +97,11 @@ def test_shapes(backend, moves, nwalkers=32, ndim=3, nsteps=10, seed=1234):
 @pytest.mark.parametrize("backend", all_backends)
 def test_errors(backend, nwalkers=32, ndim=3, nsteps=5, seed=1234):
     # Set up the random number generator.
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     with backend() as be:
         # Initialize the ensemble, proposal, and sampler.
-        coords = np.random.randn(nwalkers, ndim)
+        coords = rng.standard_normal((nwalkers, ndim))
         sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, backend=be)
 
         # Test for not running.
@@ -119,7 +119,7 @@ def test_errors(backend, nwalkers=32, ndim=3, nsteps=5, seed=1234):
         # ensemble of a different shape.
         sampler.run_mcmc(coords, nsteps, store=False)
 
-        coords2 = np.random.randn(nwalkers, ndim + 1)
+        coords2 = rng.standard_normal((nwalkers, ndim + 1))
         with pytest.raises(ValueError):
             list(sampler.run_mcmc(coords2, nsteps))
 
@@ -131,7 +131,7 @@ def test_errors(backend, nwalkers=32, ndim=3, nsteps=5, seed=1234):
         sampler.run_mcmc(
             np.ones((nwalkers, ndim)), nsteps, skip_initial_state_check=True
         )
-        sampler.run_mcmc(np.random.randn(nwalkers, ndim), nsteps)
+        sampler.run_mcmc(rng.standard_normal((nwalkers, ndim)), nsteps)
 
 
 def run_sampler(
@@ -224,9 +224,8 @@ def test_vectorize():
     def lp_vec(p):
         return -0.5 * np.sum(p**2, axis=1)
 
-    np.random.seed(42)
     nwalkers, ndim = 32, 3
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(42).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, lp_vec, vectorize=True)
     sampler.run_mcmc(coords, 10)
 
@@ -266,37 +265,44 @@ def test_walkers_dependent_ones(nwalkers, ndim):
 
 @pytest.mark.parametrize("nwalkers, ndim", [(10, 11), (2, 3)])
 def test_walkers_dependent_toofew(nwalkers, ndim):
-    assert not walkers_independent(np.random.randn(nwalkers, ndim))
+    rng = np.random.default_rng(8231)
+    assert not walkers_independent(rng.standard_normal((nwalkers, ndim)))
 
 
 @pytest.mark.parametrize("nwalkers, ndim", [(10, 2), (20, 5)])
 def test_walkers_independent_randn(nwalkers, ndim):
-    assert walkers_independent(np.random.randn(nwalkers, ndim))
+    rng = np.random.default_rng(8231)
+    assert walkers_independent(rng.standard_normal((nwalkers, ndim)))
 
 
 @pytest.mark.parametrize(
     "nwalkers, ndim, offset", [(10, 2, 1e5), (20, 5, 1e10), (30, 10, 1e14)]
 )
 def test_walkers_independent_randn_offset(nwalkers, ndim, offset):
+    rng = np.random.default_rng(8231)
     assert walkers_independent(
-        np.random.randn(nwalkers, ndim) + np.ones((nwalkers, ndim)) * offset
+        rng.standard_normal((nwalkers, ndim))
+        + np.ones((nwalkers, ndim)) * offset
     )
 
 
 def test_walkers_dependent_big_offset():
     nwalkers, ndim = 30, 10
+    rng = np.random.default_rng(8231)
     offset = 10 / np.finfo(float).eps
     assert not walkers_independent(
-        np.random.randn(nwalkers, ndim) + np.ones((nwalkers, ndim)) * offset
+        rng.standard_normal((nwalkers, ndim))
+        + np.ones((nwalkers, ndim)) * offset
     )
 
 
 def test_walkers_dependent_subtle():
     nwalkers, ndim = 30, 10
-    w = np.random.randn(nwalkers, ndim)
+    rng = np.random.default_rng(8231)
+    w = rng.standard_normal((nwalkers, ndim))
     assert walkers_independent(w)
     # random unit vector
-    p = np.random.randn(ndim)
+    p = rng.standard_normal(ndim)
     p /= np.sqrt(np.dot(p, p))
     # project away the direction of p
     w -= np.sum(p[None, :] * w, axis=1)[:, None] * p[None, :]
@@ -308,11 +314,12 @@ def test_walkers_dependent_subtle():
 
 def test_walkers_almost_dependent():
     nwalkers, ndim = 30, 10
+    rng = np.random.default_rng(8231)
     squash = 1e-8
-    w = np.random.randn(nwalkers, ndim)
+    w = rng.standard_normal((nwalkers, ndim))
     assert walkers_independent(w)
     # random unit vector
-    p = np.random.randn(ndim)
+    p = rng.standard_normal(ndim)
     p /= np.sqrt(np.dot(p, p))
     # project away the direction of p
     proj = np.sum(p[None, :] * w, axis=1)[:, None] * p[None, :]
@@ -326,7 +333,8 @@ def test_walkers_independent_scaled():
     scales = np.array([1, 1e10, 1e100, 1e200, 1e-10, 1e-100, 1e-200])
     ndim = len(scales)
     nwalkers = 5 * ndim
-    w = np.random.randn(nwalkers, ndim) * scales[None, :]
+    rng = np.random.default_rng(8231)
+    w = rng.standard_normal((nwalkers, ndim)) * scales[None, :]
     assert walkers_independent(w)
 
 
@@ -340,8 +348,9 @@ def test_walkers_independent_scaled():
     ],
 )
 def test_walkers_independent_randn_offset_longdouble(nwalkers, ndim, offset):
+    rng = np.random.default_rng(8231)
     assert walkers_independent(
-        np.random.randn(nwalkers, ndim)
+        rng.standard_normal((nwalkers, ndim))
         + np.ones((nwalkers, ndim), dtype=np.longdouble) * offset
     )
 
@@ -370,8 +379,7 @@ def test_pool_used_for_sampling():
 
 
 def test_tune(nwalkers=32, ndim=3, nsteps=5, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
 
     # The base move implements tune() as a no-op.
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
@@ -393,8 +401,7 @@ def test_tune(nwalkers=32, ndim=3, nsteps=5, seed=1234):
 
 @pytest.mark.skipif(tqdm is None, reason="tqdm not available")
 def test_progress_kwargs(capsys, nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
     sampler.run_mcmc(
         coords, 5, progress=True, progress_kwargs={"desc": "emcee-test"}
@@ -403,8 +410,7 @@ def test_progress_kwargs(capsys, nwalkers=32, ndim=3, seed=1234):
 
 
 def test_deprecated_log_prob0(nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
     log_prob0 = np.array([normal_log_prob(p) for p in coords])
     with pytest.warns(DeprecationWarning, match="log_prob0"):
@@ -448,8 +454,7 @@ def test_deprecated_blobs0(nwalkers=32, ndim=3, seed=1234):
     def lp_blobs(p):
         return normal_log_prob(p), 1.0
 
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, lp_blobs)
     log_prob0 = np.array([normal_log_prob(p) for p in coords])
     blobs0 = np.zeros(nwalkers)
@@ -467,8 +472,7 @@ def test_deprecated_blobs0(nwalkers=32, ndim=3, seed=1234):
 
 
 def test_deprecated_thin_no_store(nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
     with pytest.warns(DeprecationWarning, match="thin"):
         state = sampler.run_mcmc(coords, 6, thin=3, store=False)
@@ -483,8 +487,7 @@ def test_incompatible_backend_shape():
 
 
 def test_nan_initial_log_prob(nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     state = State(coords, log_prob=np.full(nwalkers, np.nan))
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
     with pytest.raises(ValueError, match="initial log_prob was NaN"):
@@ -492,16 +495,14 @@ def test_nan_initial_log_prob(nwalkers=32, ndim=3, seed=1234):
 
 
 def test_log_prob_fn_returns_nan(nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, lambda p: np.nan)
     with pytest.raises(ValueError, match="returned NaN"):
         sampler.run_mcmc(coords, 1)
 
 
 def test_log_prob_fn_returns_non_scalar(nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, lambda p: np.zeros((1, 2)))
     with pytest.raises(ValueError, match="should return scalar"):
         sampler.run_mcmc(coords, 1)
@@ -613,8 +614,7 @@ def test_rng_argument(nwalkers=32, ndim=3):
 
 
 def test_compute_log_prob_invalid_coords(nwalkers=32, ndim=3, seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
 
     coords_inf = np.array(coords)
@@ -629,8 +629,7 @@ def test_compute_log_prob_invalid_coords(nwalkers=32, ndim=3, seed=1234):
 
 
 def test_walkers_dependent_nonfinite(seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(10, 2)
+    coords = np.random.default_rng(seed).standard_normal((10, 2))
     coords[0, 0] = np.inf
     assert not walkers_independent(coords)
     coords[0, 0] = np.nan
@@ -640,7 +639,7 @@ def test_walkers_dependent_nonfinite(seed=1234):
 @pytest.mark.parametrize("backend", all_backends)
 def test_infinite_iterations_store(backend, nwalkers=32, ndim=3):
     with backend() as be:
-        coords = np.random.randn(nwalkers, ndim)
+        coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
         with pytest.raises(ValueError):
             next(
                 EnsembleSampler(
@@ -652,7 +651,7 @@ def test_infinite_iterations_store(backend, nwalkers=32, ndim=3):
 @pytest.mark.parametrize("backend", all_backends)
 def test_infinite_iterations(backend, nwalkers=32, ndim=3):
     with backend() as be:
-        coords = np.random.randn(nwalkers, ndim)
+        coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
         for state in islice(
             EnsembleSampler(
                 nwalkers, ndim, normal_log_prob, backend=be
