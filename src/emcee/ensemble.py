@@ -101,6 +101,10 @@ class EnsembleSampler(object):
             deprecation_warning(
                 "The 'a' argument is deprecated, use 'moves' instead"
             )
+        if postargs is not None:
+            deprecation_warning(
+                "The 'postargs' argument is deprecated, use 'args' instead"
+            )
         if threads is not None:
             deprecation_warning("The 'threads' argument is deprecated")
         if runtime_sortingfn is not None:
@@ -173,11 +177,17 @@ class EnsembleSampler(object):
         # Save the parameter names
         self.params_are_named: bool = parameter_names is not None
         if self.params_are_named:
-            assert isinstance(parameter_names, (list, dict))
+            if not isinstance(parameter_names, (list, dict)):
+                raise TypeError(
+                    "'parameter_names' must be a list or dict, got "
+                    f"{type(parameter_names).__name__}"
+                )
 
             # Don't support vectorizing yet
-            msg = "named parameters with vectorization unsupported for now"
-            assert not self.vectorize, msg
+            if self.vectorize:
+                raise ValueError(
+                    "named parameters with vectorization unsupported for now"
+                )
 
             # Check for duplicate names
             dupes = set()
@@ -186,21 +196,24 @@ class EnsembleSampler(object):
                 if name not in dupes:
                     uniq.append(name)
                     dupes.add(name)
-            msg = f"duplicate parameters: {dupes}"
-            assert len(uniq) == len(parameter_names), msg
+            if len(uniq) != len(parameter_names):
+                raise ValueError(f"duplicate parameters: {dupes}")
 
             if isinstance(parameter_names, list):
                 # Check for all named
-                msg = "name all parameters or set `parameter_names` to `None`"
-                assert len(parameter_names) == ndim, msg
+                if len(parameter_names) != ndim:
+                    raise ValueError(
+                        "name all parameters or set `parameter_names` to "
+                        "`None`"
+                    )
                 # Convert a list to a dict
                 parameter_names: Dict[str, int] = {
                     name: i for i, name in enumerate(parameter_names)
                 }
 
             # Check not too many names
-            msg = "too many names"
-            assert len(parameter_names) <= ndim, msg
+            if len(parameter_names) > ndim:
+                raise ValueError("too many names")
 
             # Check all indices appear
             values = [
@@ -209,8 +222,10 @@ class EnsembleSampler(object):
             ]
             values = [item for sublist in values for item in sublist]
             values = set(values)
-            msg = f"not all values appear -- set should be 0 to {ndim-1}"
-            assert values == set(np.arange(ndim)), msg
+            if values != set(np.arange(ndim)):
+                raise ValueError(
+                    f"not all values appear -- set should be 0 to {ndim - 1}"
+                )
             self.parameter_names = parameter_names
 
     @property
@@ -218,9 +233,9 @@ class EnsembleSampler(object):
         """
         The state of the internal random number generator. In practice, it's
         the result of calling ``get_state()`` on a
-        ``numpy.random.mtrand.RandomState`` object. You can try to set this
-        property but be warned that if you do this and it fails, it will do
-        so silently.
+        ``numpy.random.mtrand.RandomState`` object. Setting this property to
+        ``None`` is a no-op; setting it to an invalid state raises a
+        ``RuntimeWarning`` and leaves the generator unchanged.
 
         """
         return self._random.get_state()
@@ -228,14 +243,22 @@ class EnsembleSampler(object):
     @random_state.setter  # NOQA
     def random_state(self, state):
         """
-        Try to set the state of the random number generator but fail silently
-        if it doesn't work. Don't say I didn't warn you...
+        Set the state of the internal random number generator. ``None`` is
+        ignored; an invalid state raises a ``RuntimeWarning`` and leaves the
+        generator unchanged.
 
         """
+        if state is None:
+            return
         try:
             self._random.set_state(state)
-        except:
-            pass
+        except (TypeError, ValueError, IndexError):
+            warnings.warn(
+                "Invalid random state ignored; the sampler's random number "
+                "generator was left unchanged",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
     @property
     def iteration(self):
@@ -322,10 +345,9 @@ class EnsembleSampler(object):
                 "best performance"
             )
 
-        # Try to set the initial value of the random number generator. This
-        # fails silently if it doesn't work but that's what we want because
-        # we'll just interpret any garbage as letting the generator stay in
-        # it's current state.
+        # Set the initial value of the random number generator. A state of
+        # ``None`` (e.g. when ``initial_state`` was a plain array) leaves the
+        # generator in its current state.
         if rstate0 is not None:
             deprecation_warning(
                 "The 'rstate0' argument is deprecated, use a 'State' "
@@ -495,22 +517,27 @@ class EnsembleSampler(object):
                 map_func = map
             results = list(map_func(self.log_prob_fn, p))
 
+        # Does the log-prob function return blobs (extra values beyond the
+        # log-probability)? A bare scalar or a length-1 sequence (e.g.
+        # ``np.array([1.234])``) means no blobs.
         try:
-            # perhaps log_prob_fn returns blobs?
+            lengths = [len(l) for l in results]
+            has_blobs = any(n > 1 for n in lengths)
+        except TypeError:
+            has_blobs = False
 
-            # deal with the blobs first
-            # if l does not have a len attribute (i.e. not a sequence, no blob)
-            # then a TypeError is raised. However, no error will be raised if
-            # l is a length-1 array, np.array([1.234]). In that case blob
-            # will become an empty list.
-            blob = [l[1:] for l in results if len(l) > 1]
-            if not len(blob):
-                raise IndexError
-            log_prob = np.array([_scalar(l[0]) for l in results])
-        except (IndexError, TypeError):
+        if not has_blobs:
             log_prob = np.array([_scalar(l) for l in results])
             blob = None
         else:
+            if any(n <= 1 for n in lengths):
+                raise ValueError(
+                    "The log probability function returned blobs for some "
+                    "walkers but not others"
+                )
+            blob = [l[1:] for l in results]
+            log_prob = np.array([_scalar(l[0]) for l in results])
+
             # Get the blobs dtype
             if self.blobs_dtype is not None:
                 dt = self.blobs_dtype
@@ -638,7 +665,7 @@ class _FunctionWrapper(object):
     def __call__(self, x):
         try:
             return self.f(x, *self.args, **self.kwargs)
-        except:  # pragma: no cover
+        except Exception:  # pragma: no cover
             import traceback
 
             print("emcee: Exception while calling your likelihood function:")

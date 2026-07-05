@@ -200,8 +200,6 @@ class Backend(object):
             )
         if state.blobs is not None and not has_blobs:
             raise ValueError("unexpected blobs")
-        if state.blobs is None and has_blobs:
-            raise ValueError("expected blobs, but none were given")
         if state.blobs is not None and len(state.blobs) != nwalkers:
             raise ValueError(
                 "invalid blobs size; expected {0}".format(nwalkers)

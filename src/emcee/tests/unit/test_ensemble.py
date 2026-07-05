@@ -95,9 +95,18 @@ class TestNamedParameters(TestCase):
         assert sampler.params_are_named
         assert list(sampler.parameter_names.keys()) == self.names
 
-    def test_asserts(self):
+    def test_validation(self):
+        # wrong type
+        with pytest.raises(TypeError, match="list or dict"):
+            _ = EnsembleSampler(
+                nwalkers=10,
+                ndim=len(self.names),
+                log_prob_fn=self.lnpdf,
+                parameter_names=42,
+            )
+
         # ndim name mismatch
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="name all parameters"):
             _ = EnsembleSampler(
                 nwalkers=10,
                 ndim=len(self.names) - 1,
@@ -106,7 +115,7 @@ class TestNamedParameters(TestCase):
             )
 
         # duplicate names
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="duplicate parameters"):
             _ = EnsembleSampler(
                 nwalkers=10,
                 ndim=3,
@@ -115,13 +124,31 @@ class TestNamedParameters(TestCase):
             )
 
         # vectorize turned on
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="vectorization unsupported"):
             _ = EnsembleSampler(
                 nwalkers=10,
                 ndim=len(self.names),
                 log_prob_fn=self.lnpdf,
                 parameter_names=self.names,
                 vectorize=True,
+            )
+
+        # too many names in a dict
+        with pytest.raises(ValueError, match="too many names"):
+            _ = EnsembleSampler(
+                nwalkers=10,
+                ndim=2,
+                log_prob_fn=self.lnpdf,
+                parameter_names={"a": 0, "b": 1, "c": 1},
+            )
+
+        # not all indices covered by a dict
+        with pytest.raises(ValueError, match="not all values appear"):
+            _ = EnsembleSampler(
+                nwalkers=10,
+                ndim=3,
+                log_prob_fn=self.lnpdf,
+                parameter_names={"a": 0, "b": 2},
             )
 
     def test_compute_log_prob(self):

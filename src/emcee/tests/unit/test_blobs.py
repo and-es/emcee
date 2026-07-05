@@ -94,3 +94,21 @@ def test_blob_mismatch(backend):
         model.i += 1
         with pytest.raises(ValueError):
             sampler.run_mcmc(coords, 1)
+
+
+def test_blob_inconsistent_presence():
+    # Blobs returned for only some walkers must raise instead of silently
+    # dropping entries and misaligning the blob array.
+    def log_prob(x):
+        if x[0] > 0:
+            return 0.0, 1.0
+        return (0.0,)
+
+    np.random.seed(42)
+    coords = np.random.randn(32, 3)
+    coords[0, 0] = -np.abs(coords[0, 0])
+    coords[1, 0] = np.abs(coords[1, 0])
+
+    sampler = EnsembleSampler(32, 3, log_prob)
+    with pytest.raises(ValueError, match="some walkers but not others"):
+        sampler.compute_log_prob(coords)

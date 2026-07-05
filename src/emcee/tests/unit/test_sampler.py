@@ -509,6 +509,43 @@ def test_log_prob_fn_returns_non_scalar(nwalkers=32, ndim=3, seed=1234):
         sampler.run_mcmc(coords, 1)
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        dict(a=2.0),
+        dict(postargs=[1.0]),
+        dict(threads=2),
+        dict(live_dangerously=True),
+        dict(runtime_sortingfn=sorted),
+    ],
+)
+def test_deprecated_init_args(kwargs, nwalkers=32, ndim=3):
+    (name,) = kwargs
+    with pytest.warns(DeprecationWarning, match=name):
+        EnsembleSampler(nwalkers, ndim, normal_log_prob, **kwargs)
+
+
+def test_random_state_setter(nwalkers=32, ndim=3):
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+    state = sampler.random_state
+
+    # Setting ``None`` is a silent no-op.
+    sampler.random_state = None
+    assert sampler.random_state[0] == state[0]
+    assert np.all(sampler.random_state[1] == state[1])
+
+    # An invalid state warns and leaves the generator unchanged.
+    for garbage in [(), "garbage", ("MT19937",), 42]:
+        with pytest.warns(RuntimeWarning, match="Invalid random state"):
+            sampler.random_state = garbage
+        assert np.all(sampler.random_state[1] == state[1])
+
+    # A valid state is applied.
+    other = np.random.mtrand.RandomState(42).get_state()
+    sampler.random_state = other
+    assert np.all(sampler.random_state[1] == other[1])
+
+
 def test_compute_log_prob_invalid_coords(nwalkers=32, ndim=3, seed=1234):
     np.random.seed(seed)
     coords = np.random.randn(nwalkers, ndim)
