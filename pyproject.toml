@@ -81,11 +81,10 @@ parallel = true
 branch = true
 source = ["emcee"]
 omit = [
-    "emcee/interruptible_pool.py",
-    "emcee/mpi_pool.py",
-    "emcee/ptsampler.py",
-    "docs/*",
-    "tests/*",
+    "*/emcee/interruptible_pool.py",
+    "*/emcee/mpi_pool.py",
+    "*/emcee/ptsampler.py",
+    "*/emcee/tests/*",
     "*__init__*"
 ]
 
@@ -101,8 +100,7 @@ exclude_lines = [
     "except ImportError",
     "def __len__",
     "def __repr__",
-    "logging.warning",
-    "deprecation_warning",
-    "deprecated",
+    "@deprecated",
+    'deprecation_warning\(',
     "if tqdm is None"
 ]

@@ -52,9 +52,6 @@ def _test_normal(
     sampler = emcee.EnsembleSampler(
         nwalkers, ndim, lp, moves=proposal, pool=pool
     )
-    if hasattr(proposal, "ntune") and proposal.ntune > 0:
-        coords = sampler.run_mcmc(coords, proposal.ntune, tune=True)
-        sampler.reset()
     sampler.run_mcmc(coords, nsteps)
 
     # Check the acceptance fraction.
@@ -84,19 +81,26 @@ def _test_uniform(proposal, nwalkers=32, nsteps=2000, seed=1234):
     coords = np.random.rand(nwalkers, 1)
 
     sampler = emcee.EnsembleSampler(
-        nwalkers, 1, normal_log_prob, moves=proposal
+        nwalkers, 1, uniform_log_prob, moves=proposal
     )
     sampler.run_mcmc(coords, nsteps)
 
     # Check the acceptance fraction.
     acc = sampler.acceptance_fraction
     assert np.all(
-        (acc < 0.9) * (acc > 0.1)
+        (acc < 0.95) * (acc > 0.1)
     ), "Invalid acceptance fraction\n{0}".format(acc)
 
+    # Compare the sample mean and standard deviation to the expected
+    # moments of U(0, 1).
+    samps = sampler.get_chain(flat=True)
+    mu, sig = np.mean(samps), np.std(samps)
+    assert np.abs(mu - 0.5) < 0.05, "Incorrect mean"
+    assert (
+        np.abs(sig - 1.0 / np.sqrt(12)) < 0.05
+    ), "Incorrect standard deviation"
+
     if stats is not None:
-        # Check that the resulting chain "fails" the K-S test.
-        samps = sampler.get_chain(flat=True)
-        np.random.shuffle(samps)
+        # Check the (thinned) chain against the target using a K-S test.
         ks, _ = stats.kstest(samps[::100, 0], "uniform")
-        assert ks > 0.1, "The K-S test failed"
+        assert ks < 0.1, "The K-S test failed"
