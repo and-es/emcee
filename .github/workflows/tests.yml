@@ -18,11 +18,17 @@ jobs:
       matrix:
         python-version: ["3.10", "3.14"]
         os: ["ubuntu-latest"]
+        # Jobs without the extras installed skip the h5py/scipy tests
+        # (~82% coverage), so they get a looser gate than the extras
+        # jobs (see the [gh-actions] mapping in tox.ini).
+        coverage-gate: [80]
         include:
           - python-version: "3.13"
             os: "macos-latest"
+            coverage-gate: 95
           - python-version: "3.13"
             os: "windows-latest"
+            coverage-gate: 95
 
     steps:
       - name: Checkout
@@ -42,7 +48,8 @@ jobs:
       - name: Combine and upload coverage
         run: |
           python -m coverage combine
-          python -m coverage xml -i
+          python -m coverage report --fail-under=${{ matrix.coverage-gate }}
+          python -m coverage xml -i --fail-under=0
           python -m coveralls --service=github
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
