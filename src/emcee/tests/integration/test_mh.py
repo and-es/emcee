@@ -13,7 +13,10 @@ __all__ = ["test_normal_mh", "test_mh_ndim_mismatch"]
 
 def gaussian_proposal(coords, random):
     # A symmetric Gaussian random-walk proposal with zero log-ratio.
-    return coords + 1.0 * random.randn(*coords.shape), np.zeros(len(coords))
+    return (
+        coords + 1.0 * random.standard_normal(coords.shape),
+        np.zeros(len(coords)),
+    )
 
 
 @pytest.mark.parametrize("blobs", [True, False])

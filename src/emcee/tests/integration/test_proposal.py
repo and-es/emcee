@@ -39,10 +39,10 @@ def _test_normal(
     blobs=False,
 ):
     # Set up the random number generator.
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     # Initialize the ensemble and proposal.
-    coords = np.random.randn(nwalkers, ndim)
+    coords = rng.standard_normal((nwalkers, ndim))
 
     if blobs:
         lp = normal_log_prob_blobs
@@ -50,7 +50,7 @@ def _test_normal(
         lp = normal_log_prob
 
     sampler = emcee.EnsembleSampler(
-        nwalkers, ndim, lp, moves=proposal, pool=pool
+        nwalkers, ndim, lp, moves=proposal, pool=pool, rng=rng
     )
     sampler.run_mcmc(coords, nsteps)
 
@@ -75,13 +75,13 @@ def _test_normal(
 
 def _test_uniform(proposal, nwalkers=32, nsteps=2000, seed=1234):
     # Set up the random number generator.
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     # Initialize the ensemble and proposal.
-    coords = np.random.rand(nwalkers, 1)
+    coords = rng.random((nwalkers, 1))
 
     sampler = emcee.EnsembleSampler(
-        nwalkers, 1, uniform_log_prob, moves=proposal
+        nwalkers, 1, uniform_log_prob, moves=proposal, rng=rng
     )
     sampler.run_mcmc(coords, nsteps)
 

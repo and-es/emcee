@@ -40,14 +40,19 @@ def run_sampler(
     dtype=None,
     blobs=True,
     lp=None,
+    resume=False,
 ):
     if lp is None:
         lp = normal_log_prob_blobs if blobs else normal_log_prob
-    if seed is not None:
-        np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
+    # When resuming, let the sampler restore its generator from the backend
     sampler = EnsembleSampler(
-        nwalkers, ndim, lp, backend=backend, blobs_dtype=dtype
+        nwalkers,
+        ndim,
+        lp,
+        backend=backend,
+        blobs_dtype=dtype,
+        rng=None if resume else seed,
     )
     sampler.run_mcmc(coords, nsteps, thin_by=thin_by)
     return sampler
@@ -126,10 +131,7 @@ def test_backend(backend, dtype, blobs):
         last2 = sampler2.get_last_sample()
         assert np.allclose(last1.coords, last2.coords)
         assert np.allclose(last1.log_prob, last2.log_prob)
-        assert all(
-            np.allclose(l1, l2)
-            for l1, l2 in zip(last1.random_state[1:], last2.random_state[1:])
-        )
+        assert last1.random_state == last2.random_state
         if blobs:
             _custom_allclose(last1.blobs, last2.blobs)
         else:
@@ -149,7 +151,7 @@ def test_reload(backend, dtype):
 
         # Test the state
         state = backend1.random_state
-        np.random.set_state(state)
+        assert isinstance(state, dict)
 
         # Load the file using a new backend object.
         backend2 = backends.HDFBackend(
@@ -159,11 +161,7 @@ def test_reload(backend, dtype):
         with pytest.raises(RuntimeError):
             backend2.reset(32, 3)
 
-        assert state[0] == backend2.random_state[0]
-        assert all(
-            np.allclose(a, b)
-            for a, b in zip(state[1:], backend2.random_state[1:])
-        )
+        assert state == backend2.random_state
 
         # Check all of the components.
         for k in ["chain", "log_prob", "blobs"]:
@@ -175,10 +173,7 @@ def test_reload(backend, dtype):
         last2 = backend2.get_last_sample()
         assert np.allclose(last1.coords, last2.coords)
         assert np.allclose(last1.log_prob, last2.log_prob)
-        assert all(
-            np.allclose(l1, l2)
-            for l1, l2 in zip(last1.random_state[1:], last2.random_state[1:])
-        )
+        assert last1.random_state == last2.random_state
         _custom_allclose(last1.blobs, last2.blobs)
 
         a = backend1.accepted
@@ -193,11 +188,11 @@ def test_restart(backend, dtype):
     # Run a sampler with the default backend.
     b = backends.Backend()
     run_sampler(b, dtype=dtype)
-    sampler1 = run_sampler(b, seed=None, dtype=dtype)
+    sampler1 = run_sampler(b, seed=4321, dtype=dtype, resume=True)
 
     with backend() as be:
         run_sampler(be, dtype=dtype)
-        sampler2 = run_sampler(be, seed=None, dtype=dtype)
+        sampler2 = run_sampler(be, seed=4321, dtype=dtype, resume=True)
 
         # Check all of the components.
         for k in ["chain", "log_prob", "blobs"]:
@@ -209,15 +204,58 @@ def test_restart(backend, dtype):
         last2 = sampler2.get_last_sample()
         assert np.allclose(last1.coords, last2.coords)
         assert np.allclose(last1.log_prob, last2.log_prob)
-        assert all(
-            np.allclose(l1, l2)
-            for l1, l2 in zip(last1.random_state[1:], last2.random_state[1:])
-        )
+        assert last1.random_state == last2.random_state
         _custom_allclose(last1.blobs, last2.blobs)
 
         a = sampler1.acceptance_fraction
         b = sampler2.acceptance_fraction
         assert np.allclose(a, b), "inconsistent acceptance fraction"
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_resume_random_state():
+    # The generator state stored by the backend is restored on resume
+    with backends.TempHDFBackend() as b:
+        run_sampler(b, nsteps=5)
+        state = b.random_state
+        assert isinstance(state, dict)
+        assert state["bit_generator"] == "PCG64"
+
+        sampler = EnsembleSampler(32, 3, normal_log_prob_blobs, backend=b)
+        assert sampler.random_state == state
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_legacy_random_state_migration():
+    # A file written by an older emcee stores the random state as
+    # ``random_state_{i}`` attributes; it must be readable and migrated
+    # to the new format on the next save
+    with backends.TempHDFBackend() as b:
+        run_sampler(b, nsteps=3)
+        legacy = np.random.mtrand.RandomState(11).get_state()
+        with h5py.File(b.filename, "a") as f:
+            g = f[b.name]
+            del g.attrs["random_state"]
+            for i, v in enumerate(legacy):
+                g.attrs["random_state_{0}".format(i)] = v
+
+        # The legacy attributes are returned as a list
+        stored = b.random_state
+        assert stored[0] == "MT19937"
+
+        # Resuming converts the legacy state to an MT19937 generator
+        sampler = EnsembleSampler(32, 3, normal_log_prob_blobs, backend=b)
+        state = sampler.random_state
+        assert state["bit_generator"] == "MT19937"
+        assert np.array_equal(state["state"]["key"], legacy[1])
+        assert state["state"]["pos"] == legacy[2]
+
+        # After another step the file uses the new format only
+        sampler.run_mcmc(None, 1)
+        with h5py.File(b.filename, "r") as f:
+            attrs = set(f[b.name].attrs)
+            assert "random_state" in attrs
+            assert not any(a.startswith("random_state_") for a in attrs)
 
 
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")

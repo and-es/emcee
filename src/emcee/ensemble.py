@@ -11,7 +11,13 @@ from .model import Model
 from .moves import StretchMove
 from .pbar import get_progress_bar
 from .state import State
-from .utils import deprecated, deprecation_warning
+from .utils import (
+    deprecated,
+    deprecation_warning,
+    ensure_rng,
+    generator_from_state,
+    random_state_to_generator,
+)
 
 __all__ = ["EnsembleSampler", "walkers_independent"]
 
@@ -73,6 +79,14 @@ class EnsembleSampler(object):
             names of individual parameters or groups of parameters. If
             specified, the ``log_prob_fn`` will recieve a dictionary of
             parameters, rather than a ``np.ndarray``.
+        rng (Optional): A source of randomness for reproducible sampling:
+            either ``None`` (a fresh unseeded generator; default), an
+            integer or ``numpy.random.SeedSequence`` seed, or a
+            ``numpy.random.Generator`` or ``numpy.random.BitGenerator``
+            (used as-is). A legacy ``numpy.random.RandomState`` is also
+            accepted but deprecated. When ``rng`` is ``None`` and the
+            backend already stores a random state, that state is restored
+            instead; an explicit ``rng`` takes precedence over the backend.
 
     """
 
@@ -89,6 +103,7 @@ class EnsembleSampler(object):
         vectorize=False,
         blobs_dtype=None,
         parameter_names: Optional[Union[Dict[str, int], List[str]]] = None,
+        rng=None,
         # Deprecated...
         a=None,
         postargs=None,
@@ -144,7 +159,7 @@ class EnsembleSampler(object):
         if not self.backend.initialized:
             self._previous_state = None
             self.reset()
-            state = np.random.get_state()
+            state = None
         else:
             # Check the backend shape
             if self.backend.shape != (self.nwalkers, self.ndim):
@@ -157,18 +172,21 @@ class EnsembleSampler(object):
 
             # Get the last random state
             state = self.backend.random_state
-            if state is None:
-                state = np.random.get_state()
 
             # Grab the last step so that we can restart
             it = self.backend.iteration
             if it > 0:
                 self._previous_state = self.get_last_sample()
 
-        # This is a random number generator that we can easily set the state
-        # of without affecting the numpy-wide generator
-        self._random = np.random.mtrand.RandomState()
-        self._random.set_state(state)
+        # The sampler's random number generator; an explicit ``rng``
+        # argument takes precedence over a state stored in the backend
+        if rng is not None or state is None:
+            self._random = ensure_rng(rng)
+        elif isinstance(state, dict):
+            self._random = generator_from_state(state)
+        else:
+            # A legacy RandomState tuple stored by an older emcee version
+            self._random = random_state_to_generator(state)
 
         # Do a little bit of _magic_ to make the likelihood call with
         # ``args`` and ``kwargs`` pickleable.
@@ -231,14 +249,15 @@ class EnsembleSampler(object):
     @property
     def random_state(self):
         """
-        The state of the internal random number generator. In practice, it's
-        the result of calling ``get_state()`` on a
-        ``numpy.random.mtrand.RandomState`` object. Setting this property to
-        ``None`` is a no-op; setting it to an invalid state raises a
-        ``RuntimeWarning`` and leaves the generator unchanged.
+        The state of the internal random number generator: the
+        ``bit_generator.state`` dict of a ``numpy.random.Generator``.
+        Setting this property to ``None`` is a no-op; setting it to an
+        invalid state raises a ``RuntimeWarning`` and leaves the generator
+        unchanged. For backwards compatibility, a legacy
+        ``RandomState.get_state()`` tuple is also accepted when setting.
 
         """
-        return self._random.get_state()
+        return self._random.bit_generator.state
 
     @random_state.setter  # NOQA
     def random_state(self, state):
@@ -251,8 +270,18 @@ class EnsembleSampler(object):
         if state is None:
             return
         try:
-            self._random.set_state(state)
-        except (TypeError, ValueError, IndexError):
+            if isinstance(state, dict):
+                bit_generator = self._random.bit_generator
+                if state["bit_generator"] == type(bit_generator).__name__:
+                    # Update in place so that existing references to the
+                    # generator (e.g. an in-flight ``Model``) see the state
+                    bit_generator.state = state
+                else:
+                    self._random = generator_from_state(state)
+            else:
+                # A legacy RandomState.get_state() tuple
+                self._random = random_state_to_generator(state)
+        except (TypeError, ValueError, IndexError, KeyError):
             warnings.warn(
                 "Invalid random state ignored; the sampler's random number "
                 "generator was left unchanged",
@@ -425,7 +454,9 @@ class EnsembleSampler(object):
             for _ in count() if iterations is None else range(iterations):
                 for _ in range(yield_step):
                     # Choose a random move
-                    move = self._random.choice(self._moves, p=self._weights)
+                    move = self._moves[
+                        self._random.choice(len(self._moves), p=self._weights)
+                    ]
 
                     # Propose
                     state, accepted = move.propose(model, state)

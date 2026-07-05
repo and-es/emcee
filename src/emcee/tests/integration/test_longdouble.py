@@ -30,15 +30,18 @@ def test_longdouble_actually_needed(cls):
         assert x.dtype == np.longdouble
         return -0.5 * np.sum(((x - mjd) / sigma) ** 2)
 
-    np.random.seed(0)
+    rng = np.random.default_rng(0)
     ndim, nwalkers = 1, 20
     steps = 1000
-    p0 = sigma * np.random.randn(nwalkers, ndim).astype(np.longdouble) + mjd
+    p0 = (
+        sigma * rng.standard_normal((nwalkers, ndim)).astype(np.longdouble)
+        + mjd
+    )
     assert not all(p0 == mjd)
 
     with cls(dtype=np.longdouble) as backend:
         sampler = emcee.EnsembleSampler(
-            nwalkers, ndim, log_prob, backend=backend
+            nwalkers, ndim, log_prob, backend=backend, rng=0
         )
         sampler.run_mcmc(p0, steps)
 

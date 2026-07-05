@@ -57,7 +57,7 @@ class RedBlueMove(Move):
             log_probs: The initial log probabilities of the walkers.
             log_prob_fn: A function that computes the log probabilities for a
                 subset of walkers.
-            random: A numpy-compatible random number state.
+            random: A ``numpy.random.Generator`` instance.
 
         """
         # Check that the dimensions are compatible.
@@ -97,7 +97,7 @@ class RedBlueMove(Move):
                 zip(all_inds[S1], factors, new_log_probs)
             ):
                 lnpdiff = f + nlp - state.log_prob[j]
-                if lnpdiff > np.log(model.random.rand()):
+                if lnpdiff > np.log(model.random.random()):
                     accepted[j] = True
 
             new_state = State(q, log_prob=new_log_probs, blobs=new_blobs)

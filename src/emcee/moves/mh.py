@@ -18,7 +18,7 @@ class MHMove(Move):
 
     Args:
         proposal_function: The proposal function. It should take 2 arguments: a
-            numpy-compatible random number generator and a ``(K, ndim)`` list
+            ``numpy.random.Generator`` instance and a ``(K, ndim)`` list
             of coordinate vectors. This function should return the proposed
             position and the log-ratio of the proposal probabilities
             (:math:`\ln q(x;\,x^\prime) - \ln q(x^\prime;\,x)` where
@@ -40,7 +40,7 @@ class MHMove(Move):
             log_probs: The initial log probabilities of the walkers.
             log_prob_fn: A function that computes the log probabilities for a
                 subset of walkers.
-            random: A numpy-compatible random number state.
+            random: A ``numpy.random.Generator`` instance.
 
         """
         # Check to make sure that the dimensions match.
@@ -56,7 +56,7 @@ class MHMove(Move):
 
         # Loop over the walkers and update them accordingly.
         lnpdiff = new_log_probs - state.log_prob + factors
-        accepted = np.log(model.random.rand(nwalkers)) < lnpdiff
+        accepted = np.log(model.random.random(nwalkers)) < lnpdiff
 
         # Update the parameters
         new_state = State(q, log_prob=new_log_probs, blobs=new_blobs)

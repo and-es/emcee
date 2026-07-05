@@ -145,9 +145,10 @@ def run_sampler(
     progress=False,
     store=True,
 ):
-    np.random.seed(seed)
-    coords = np.random.randn(nwalkers, ndim)
-    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, backend=backend)
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
+    sampler = EnsembleSampler(
+        nwalkers, ndim, normal_log_prob, backend=backend, rng=seed
+    )
     sampler.run_mcmc(
         coords,
         nsteps,
@@ -357,9 +358,8 @@ def test_pool_used_for_sampling():
     sampler1 = run_sampler(None)
 
     pool = CountingPool()
-    np.random.seed(1234)
-    coords = np.random.randn(32, 3)
-    sampler2 = EnsembleSampler(32, 3, normal_log_prob, pool=pool)
+    coords = np.random.default_rng(1234).standard_normal((32, 3))
+    sampler2 = EnsembleSampler(32, 3, normal_log_prob, pool=pool, rng=1234)
     sampler2.run_mcmc(coords, 25)
 
     assert pool.count > 0
@@ -427,12 +427,10 @@ def test_deprecated_log_prob0(nwalkers=32, ndim=3, seed=1234):
 
 
 def test_deprecated_rstate0(nwalkers=32, ndim=3):
-    def one_step(global_seed, rstate0):
-        np.random.seed(1234)
-        coords = np.random.randn(nwalkers, ndim)
-        # Change the global state so that the samplers' internal random
-        # number generators start out different.
-        np.random.seed(global_seed)
+    def one_step(rstate0):
+        coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
+        # Each sampler starts from a different (unseeded) generator, so
+        # the runs only agree because ``rstate0`` overrides it.
         sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
         with pytest.warns(DeprecationWarning, match="rstate0"):
             state = next(
@@ -443,7 +441,7 @@ def test_deprecated_rstate0(nwalkers=32, ndim=3):
         return state.coords
 
     rstate0 = np.random.mtrand.RandomState(42).get_state()
-    assert np.allclose(one_step(1, rstate0), one_step(2, rstate0))
+    assert np.allclose(one_step(rstate0), one_step(rstate0))
 
 
 def test_deprecated_blobs0(nwalkers=32, ndim=3, seed=1234):
@@ -528,22 +526,90 @@ def test_deprecated_init_args(kwargs, nwalkers=32, ndim=3):
 def test_random_state_setter(nwalkers=32, ndim=3):
     sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
     state = sampler.random_state
+    assert isinstance(state, dict)
 
     # Setting ``None`` is a silent no-op.
     sampler.random_state = None
-    assert sampler.random_state[0] == state[0]
-    assert np.all(sampler.random_state[1] == state[1])
+    assert sampler.random_state == state
 
     # An invalid state warns and leaves the generator unchanged.
-    for garbage in [(), "garbage", ("MT19937",), 42]:
+    garbage_states = [
+        (),
+        "garbage",
+        ("MT19937",),
+        42,
+        {},
+        {"bit_generator": "NotABitGenerator"},
+    ]
+    for garbage in garbage_states:
         with pytest.warns(RuntimeWarning, match="Invalid random state"):
             sampler.random_state = garbage
-        assert np.all(sampler.random_state[1] == state[1])
+        assert sampler.random_state == state
 
-    # A valid state is applied.
-    other = np.random.mtrand.RandomState(42).get_state()
+    # A state dict for the same bit generator is applied in place.
+    other = np.random.default_rng(42).bit_generator.state
     sampler.random_state = other
-    assert np.all(sampler.random_state[1] == other[1])
+    assert sampler.random_state == other
+
+    # A state dict for a different bit generator replaces the generator.
+    mt_state = np.random.Generator(np.random.MT19937(1)).bit_generator.state
+    sampler.random_state = mt_state
+    new = sampler.random_state
+    assert new["bit_generator"] == "MT19937"
+    assert np.array_equal(new["state"]["key"], mt_state["state"]["key"])
+    assert new["state"]["pos"] == mt_state["state"]["pos"]
+
+    # A legacy RandomState tuple is converted to an MT19937 generator.
+    legacy = np.random.mtrand.RandomState(42).get_state()
+    sampler.random_state = legacy
+    new = sampler.random_state
+    assert new["bit_generator"] == "MT19937"
+    assert np.array_equal(new["state"]["key"], legacy[1])
+    assert new["state"]["pos"] == legacy[2]
+
+
+def test_rng_reproducibility(nwalkers=32, ndim=3):
+    coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
+
+    def run(rng):
+        sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=rng)
+        sampler.run_mcmc(coords, 10)
+        return sampler.get_chain()
+
+    assert np.array_equal(run(42), run(42))
+    assert not np.array_equal(run(42), run(43))
+
+
+def test_rng_argument(nwalkers=32, ndim=3):
+    # A ``Generator`` is used as-is.
+    gen = np.random.default_rng(42)
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=gen)
+    assert (
+        sampler.random_state == np.random.default_rng(42).bit_generator.state
+    )
+
+    # A legacy ``RandomState`` is deprecated but converted.
+    with pytest.warns(DeprecationWarning, match="RandomState"):
+        sampler = EnsembleSampler(
+            nwalkers, ndim, normal_log_prob, rng=np.random.RandomState(42)
+        )
+    assert sampler.random_state["bit_generator"] == "MT19937"
+
+    # Invalid seeds raise a ``TypeError``.
+    with pytest.raises(TypeError):
+        EnsembleSampler(nwalkers, ndim, normal_log_prob, rng="invalid")
+
+    # An explicit ``rng`` takes precedence over the backend's state.
+    be = backends.Backend()
+    run_sampler(be, seed=5)
+    stored = be.random_state
+    sampler = EnsembleSampler(
+        be.shape[0], be.shape[1], normal_log_prob, backend=be, rng=42
+    )
+    assert (
+        sampler.random_state == np.random.default_rng(42).bit_generator.state
+    )
+    assert stored is not None
 
 
 def test_compute_log_prob_invalid_coords(nwalkers=32, ndim=3, seed=1234):

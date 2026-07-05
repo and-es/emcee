@@ -8,15 +8,16 @@ from emcee.state import State
 
 
 def check_rstate(a, b):
-    assert all(np.allclose(a_, b_) for a_, b_ in zip(a[1:], b[1:]))
+    # Bit generator state dicts of a PCG64 generator compare directly
+    assert a == b
 
 
 def test_back_compat(seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(16, 3)
-    log_prob = np.random.randn(len(coords))
-    blobs = np.random.randn(len(coords))
-    rstate = np.random.get_state()
+    rng = np.random.default_rng(seed)
+    coords = rng.standard_normal((16, 3))
+    log_prob = rng.standard_normal(len(coords))
+    blobs = rng.standard_normal(len(coords))
+    rstate = rng.bit_generator.state
 
     state = State(coords, log_prob, blobs, rstate)
     c, l, r, b = state
@@ -33,13 +34,11 @@ def test_back_compat(seed=1234):
 
 
 def test_overwrite(seed=1234):
-    np.random.seed(seed)
-
     def ll(x):
         return -0.5 * np.sum(x**2)
 
     nwalkers = 64
-    p0 = np.random.normal(size=(nwalkers, 1))
+    p0 = np.random.default_rng(seed).normal(size=(nwalkers, 1))
     init = np.copy(p0)
 
     sampler = EnsembleSampler(nwalkers, 1, ll)
@@ -48,11 +47,11 @@ def test_overwrite(seed=1234):
 
 
 def test_indexing(seed=1234):
-    np.random.seed(seed)
-    coords = np.random.randn(16, 3)
-    log_prob = np.random.randn(len(coords))
-    blobs = np.random.randn(len(coords))
-    rstate = np.random.get_state()
+    rng = np.random.default_rng(seed)
+    coords = rng.standard_normal((16, 3))
+    log_prob = rng.standard_normal(len(coords))
+    blobs = rng.standard_normal(len(coords))
+    rstate = rng.bit_generator.state
 
     state = State(coords, log_prob, blobs, rstate)
     np.testing.assert_allclose(state[0], state.coords)

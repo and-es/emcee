@@ -22,7 +22,10 @@ class State(object):
         blobs (Optional): The metadata “blobs” associated with the current
             position. The value is only returned if lnpostfn returns blobs too.
         random_state (Optional): The current state of the random number
-            generator.
+            generator: the ``bit_generator.state`` dict of a
+            ``numpy.random.Generator`` (or a legacy
+            ``RandomState.get_state()`` tuple written by an older version of
+            emcee).
     """
 
     __slots__ = "coords", "log_prob", "blobs", "random_state"

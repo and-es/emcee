@@ -2,6 +2,7 @@
 
 from __future__ import division, print_function
 
+import json
 import os
 from tempfile import NamedTemporaryFile
 
@@ -39,6 +40,17 @@ def does_hdf5_support_longdouble():
         finally:
             os.remove(f.name)
     return True
+
+
+def _json_default(obj):
+    """Serialize the numpy types appearing in bit generator states"""
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, np.integer):
+        return int(obj)
+    raise TypeError(
+        f"Object of type {type(obj).__name__} is not JSON serializable"
+    )
 
 
 class HDFBackend(Backend):
@@ -196,9 +208,15 @@ class HDFBackend(Backend):
     @property
     def random_state(self):
         with self.open() as f:
+            attrs = f[self.name].attrs
+            if "random_state" in attrs:
+                # A bit generator state dict serialized as JSON
+                return json.loads(attrs["random_state"])
+            # Fall back to the legacy RandomState tuple, stored
+            # element-by-element by older versions of emcee
             elements = [
                 v
-                for k, v in sorted(f[self.name].attrs.items())
+                for k, v in sorted(attrs.items())
                 if k.startswith("random_state_")
             ]
         return elements if len(elements) else None
@@ -264,8 +282,13 @@ class HDFBackend(Backend):
                 g["blobs"][iteration, :] = state.blobs
             g["accepted"][:] += accepted
 
-            for i, v in enumerate(state.random_state):
-                g.attrs["random_state_{0}".format(i)] = v
+            g.attrs["random_state"] = json.dumps(
+                state.random_state, default=_json_default
+            )
+            # Clean up the legacy per-element attributes left behind when
+            # resuming a file written by an older version of emcee
+            for k in [k for k in g.attrs if k.startswith("random_state_")]:
+                del g.attrs[k]
 
             g.attrs["iteration"] = iteration + 1
 
