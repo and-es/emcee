@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from ..state import State
@@ -46,7 +44,7 @@ class RedBlueMove(Move):
 
     def get_proposal(self, sample, complement, random):
         raise NotImplementedError(
-            "The proposal must be implemented by " "subclasses"
+            "The proposal must be implemented by subclasses"
         )
 
     def propose(self, model, state):
@@ -93,9 +91,7 @@ class RedBlueMove(Move):
             new_log_probs, new_blobs = model.compute_log_prob_fn(q)
 
             # Loop over the walkers and update them accordingly.
-            for i, (j, f, nlp) in enumerate(
-                zip(all_inds[S1], factors, new_log_probs)
-            ):
+            for j, f, nlp in zip(all_inds[S1], factors, new_log_probs):
                 lnpdiff = f + nlp - state.log_prob[j]
                 if lnpdiff > np.log(model.random.random()):
                     accepted[j] = True

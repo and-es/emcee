@@ -1,7 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import division, print_function
-
 import json
 import os
 from tempfile import NamedTemporaryFile
@@ -103,7 +99,7 @@ class HDFBackend(Backend):
         try:
             with self.open() as f:
                 return self.name in f
-        except (OSError, IOError):
+        except OSError:
             return False
 
     def open(self, mode="r"):
@@ -298,7 +294,7 @@ class HDFBackend(Backend):
             g.attrs["iteration"] = iteration + 1
 
 
-class TempHDFBackend(object):
+class TempHDFBackend:
     def __init__(self, dtype=None, compression=None, compression_opts=None):
         self.dtype = dtype
         self.filename = None

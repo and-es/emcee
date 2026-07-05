@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 from functools import lru_cache
 
 import numpy as np
@@ -57,9 +56,11 @@ class DEMove(RedBlueMove):
             1 + self.sigma * random.standard_normal((ns, 1))
         )  # (ns, 1)
 
-        # In this way, sigma is the standard deviation of the distribution of gamma,
-        # instead of the standard deviation of the distribution of the proposal as proposed by Ter Braak (2006).
-        # Otherwise, sigma should be tuned for each dimension, which confronts the idea of affine-invariance.
+        # In this way, sigma is the standard deviation of the distribution
+        # of gamma, instead of the standard deviation of the distribution of
+        # the proposal as proposed by Ter Braak (2006). Otherwise, sigma
+        # should be tuned for each dimension, which confronts the idea of
+        # affine-invariance.
 
         q = s + gamma * diffs
 
@@ -68,7 +69,8 @@ class DEMove(RedBlueMove):
 
 @lru_cache(maxsize=1)
 def _get_nondiagonal_pairs(n: int) -> np.ndarray:
-    """Get the indices of a square matrix with size n, excluding the diagonal."""
+    """Get the indices of a square matrix of size n, excluding the
+    diagonal."""
     rows, cols = np.tril_indices(n, -1)  # -1 to exclude diagonal
 
     # Combine rows-cols and cols-rows pairs

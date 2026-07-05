@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from .mh import MHMove
@@ -49,17 +47,17 @@ class GaussianMove(MHMove):
                 proposal = _proposal(cov, factor, mode)
 
             else:
-                raise ValueError("Invalid proposal scale dimensions")
+                raise ValueError("Invalid proposal scale dimensions") from None
 
         else:
             # This was a scalar proposal.
             ndim = None
             proposal = _isotropic_proposal(np.sqrt(cov), factor, mode)
 
-        super(GaussianMove, self).__init__(proposal, ndim=ndim)
+        super().__init__(proposal, ndim=ndim)
 
 
-class _isotropic_proposal(object):
+class _isotropic_proposal:
     allowed_modes = ["vector", "random", "sequential"]
 
     def __init__(self, scale, factor, mode):
@@ -74,10 +72,8 @@ class _isotropic_proposal(object):
 
         if mode not in self.allowed_modes:
             raise ValueError(
-                (
-                    "'{0}' is not a recognized mode. "
-                    "Please select from: {1}"
-                ).format(mode, self.allowed_modes)
+                f"'{mode}' is not a recognized mode. "
+                f"Please select from: {self.allowed_modes}"
             )
         self.mode = mode
 

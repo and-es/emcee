@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import pickle
 from itertools import islice, product
 
@@ -80,18 +78,18 @@ def test_shapes(backend, moves, nwalkers=32, ndim=3, nsteps=10, seed=1234):
             nwalkers,
         ), "incorrect probability dimensions"
 
-        assert sampler.acceptance_fraction.shape == (
-            nwalkers,
-        ), "incorrect acceptance fraction dimensions"
+        assert sampler.acceptance_fraction.shape == (nwalkers,), (
+            "incorrect acceptance fraction dimensions"
+        )
 
         # Check the shape of the flattened coords.
         assert sampler.get_chain(flat=True).shape == (
             nsteps * nwalkers,
             ndim,
         ), "incorrect coordinate dimensions"
-        assert sampler.get_log_prob(flat=True).shape == (
-            nsteps * nwalkers,
-        ), "incorrect probability dimensions"
+        assert sampler.get_log_prob(flat=True).shape == (nsteps * nwalkers,), (
+            "incorrect probability dimensions"
+        )
 
 
 @pytest.mark.parametrize("backend", all_backends)
@@ -177,8 +175,8 @@ def test_thin(backend):
             a = getattr(sampler1, k)()[thinby - 1 :: thinby]
             b = getattr(sampler2, k)()
             c = getattr(sampler1, k)(thin=thinby)
-            assert np.allclose(a, b), "inconsistent {0}".format(k)
-            assert np.allclose(a, c), "inconsistent {0}".format(k)
+            assert np.allclose(a, b), f"inconsistent {k}"
+            assert np.allclose(a, c), f"inconsistent {k}"
 
 
 @pytest.mark.parametrize(
@@ -200,8 +198,8 @@ def test_thin_by(backend, progress):
             a = getattr(sampler1, k)()[thinby - 1 :: thinby]
             b = getattr(sampler2, k)()
             c = getattr(sampler1, k)(thin=thinby)
-            assert np.allclose(a, b), "inconsistent {0}".format(k)
-            assert np.allclose(a, c), "inconsistent {0}".format(k)
+            assert np.allclose(a, b), f"inconsistent {k}"
+            assert np.allclose(a, c), f"inconsistent {k}"
         assert sampler1.iteration == sampler2.iteration * thinby
 
 
@@ -241,7 +239,7 @@ def test_pickle(backend):
         for k in ["get_chain", "get_log_prob"]:
             a = getattr(sampler1, k)()
             b = getattr(sampler2, k)()
-            assert np.allclose(a, b), "inconsistent {0}".format(k)
+            assert np.allclose(a, b), f"inconsistent {k}"
 
 
 def test_pickle_preserves_pool():
@@ -375,7 +373,7 @@ def test_pool_used_for_sampling():
     for k in ["get_chain", "get_log_prob"]:
         a = getattr(sampler1, k)()
         b = getattr(sampler2, k)()
-        assert np.allclose(a, b), "inconsistent {0}".format(k)
+        assert np.allclose(a, b), f"inconsistent {k}"
 
 
 def test_tune(nwalkers=32, ndim=3, nsteps=5, seed=1234):
@@ -679,7 +677,7 @@ def test_infinite_iterations_store(backend, nwalkers=32, ndim=3):
 def test_infinite_iterations(backend, nwalkers=32, ndim=3):
     with backend() as be:
         coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
-        for state in islice(
+        for _ in islice(
             EnsembleSampler(
                 nwalkers, ndim, normal_log_prob, backend=be
             ).sample(coords, iterations=None, store=False),

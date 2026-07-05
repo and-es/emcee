@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-
 import os
 from itertools import product
-from os.path import join
 
 import numpy as np
 import pytest
@@ -27,7 +24,7 @@ def normal_log_prob(params):
 
 
 def normal_log_prob_blobs(params):
-    return normal_log_prob(params), 0.1, int(5)
+    return normal_log_prob(params), 0.1, 5
 
 
 def run_sampler(
@@ -237,7 +234,7 @@ def test_legacy_random_state_migration():
             g = f[b.name]
             del g.attrs["random_state"]
             for i, v in enumerate(legacy):
-                g.attrs["random_state_{0}".format(i)] = v
+                g.attrs[f"random_state_{i}"] = v
 
         # The legacy attributes are returned as a list
         stored = b.random_state
@@ -412,4 +409,4 @@ def test_hdf5_compression():
         b.get_chain()
         b.get_blobs()
         b.get_log_prob()
-        b.accepted
+        assert b.accepted is not None

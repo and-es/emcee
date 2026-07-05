@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import warnings
 from functools import wraps
 
@@ -111,9 +109,9 @@ def stored_state_to_generator(state):
 
 def deprecated(alternate):
     def wrapper(func, alternate=alternate):
-        msg = "'{0}' is deprecated.".format(func.__name__)
+        msg = f"'{func.__name__}' is deprecated."
         if alternate is not None:
-            msg += " Use '{0}' instead.".format(alternate)
+            msg += f" Use '{alternate}' instead."
 
         @wraps(func)
         def f(*args, **kwargs):

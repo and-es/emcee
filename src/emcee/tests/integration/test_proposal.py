@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
-import pytest
 
 import emcee
 
@@ -57,9 +54,9 @@ def _test_normal(
     # Check the acceptance fraction.
     if check_acceptance:
         acc = sampler.acceptance_fraction
-        assert np.all(
-            (acc < 0.9) * (acc > 0.1)
-        ), "Invalid acceptance fraction\n{0}".format(acc)
+        assert np.all((acc < 0.9) * (acc > 0.1)), (
+            f"Invalid acceptance fraction\n{acc}"
+        )
 
     # Check the resulting chain using a K-S test and compare to the mean and
     # standard deviation.
@@ -87,18 +84,18 @@ def _test_uniform(proposal, nwalkers=32, nsteps=2000, seed=1234):
 
     # Check the acceptance fraction.
     acc = sampler.acceptance_fraction
-    assert np.all(
-        (acc < 0.95) * (acc > 0.1)
-    ), "Invalid acceptance fraction\n{0}".format(acc)
+    assert np.all((acc < 0.95) * (acc > 0.1)), (
+        f"Invalid acceptance fraction\n{acc}"
+    )
 
     # Compare the sample mean and standard deviation to the expected
     # moments of U(0, 1).
     samps = sampler.get_chain(flat=True)
     mu, sig = np.mean(samps), np.std(samps)
     assert np.abs(mu - 0.5) < 0.05, "Incorrect mean"
-    assert (
-        np.abs(sig - 1.0 / np.sqrt(12)) < 0.05
-    ), "Incorrect standard deviation"
+    assert np.abs(sig - 1.0 / np.sqrt(12)) < 0.05, (
+        "Incorrect standard deviation"
+    )
 
     if stats is not None:
         # Check the (thinned) chain against the target using a K-S test.

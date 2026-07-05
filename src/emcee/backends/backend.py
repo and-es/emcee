@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from .. import autocorr
@@ -8,7 +6,7 @@ from ..state import State
 __all__ = ["Backend"]
 
 
-class Backend(object):
+class Backend:
     """A simple default backend that stores the chain in memory"""
 
     def __init__(self, dtype=None):
@@ -190,24 +188,18 @@ class Backend(object):
         has_blobs = self.has_blobs()
         if state.coords.shape != (nwalkers, ndim):
             raise ValueError(
-                "invalid coordinate dimensions; expected {0}".format(
-                    (nwalkers, ndim)
-                )
+                f"invalid coordinate dimensions; expected {(nwalkers, ndim)}"
             )
         if state.log_prob.shape != (nwalkers,):
             raise ValueError(
-                "invalid log probability size; expected {0}".format(nwalkers)
+                f"invalid log probability size; expected {nwalkers}"
             )
         if state.blobs is not None and not has_blobs:
             raise ValueError("unexpected blobs")
         if state.blobs is not None and len(state.blobs) != nwalkers:
-            raise ValueError(
-                "invalid blobs size; expected {0}".format(nwalkers)
-            )
+            raise ValueError(f"invalid blobs size; expected {nwalkers}")
         if accepted.shape != (nwalkers,):
-            raise ValueError(
-                "invalid acceptance size; expected {0}".format(nwalkers)
-            )
+            raise ValueError(f"invalid acceptance size; expected {nwalkers}")
 
     def save_step(self, state, accepted):
         """Save a step to the backend

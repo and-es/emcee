@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from .backend import Backend
 from .hdf import HDFBackend, TempHDFBackend
 

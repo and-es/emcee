@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from copy import deepcopy
 
 import numpy as np
@@ -7,7 +5,7 @@ import numpy as np
 __all__ = ["State"]
 
 
-class State(object):
+class State:
     """The state of the ensemble during an MCMC run
 
     For backwards compatibility, this will unpack into ``coords, log_prob,
@@ -53,8 +51,9 @@ class State(object):
         return 4
 
     def __repr__(self):
-        return "State({0}, log_prob={1}, blobs={2}, random_state={3})".format(
-            self.coords, self.log_prob, self.blobs, self.random_state
+        return (
+            f"State({self.coords}, log_prob={self.log_prob}, "
+            f"blobs={self.blobs}, random_state={self.random_state})"
         )
 
     def __iter__(self):
@@ -75,4 +74,4 @@ class State(object):
             return self.random_state
         elif index == 3 and self.blobs is not None:
             return self.blobs
-        raise IndexError("Invalid index '{0}'".format(index))
+        raise IndexError(f"Invalid index '{index}'")

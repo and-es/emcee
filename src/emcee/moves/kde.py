@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -33,7 +31,7 @@ class KDEMove(RedBlueMove):
                 "you need scipy.stats.gaussian_kde to use the KDEMove"
             )
         self.bw_method = bw_method
-        super(KDEMove, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def get_proposal(self, s, c, random):
         c = np.concatenate(c, axis=0)

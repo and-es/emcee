@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
 import re
 import sys
@@ -15,8 +14,8 @@ def subber(m):
 prog = re.compile(r":(.+):``(.+)``")
 
 for fn in sys.argv[1:]:
-    print("Fixing links in {0}".format(fn))
-    with open(fn, "r") as f:
+    print(f"Fixing links in {fn}")
+    with open(fn) as f:
         txt = f.read()
     txt = prog.sub(subber, txt)
     with open(fn, "w") as f:

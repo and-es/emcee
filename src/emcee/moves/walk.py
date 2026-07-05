@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -22,12 +20,11 @@ class WalkMove(RedBlueMove):
 
     def __init__(self, s=None, **kwargs):
         self.s = s
-        super(WalkMove, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def get_proposal(self, s, c, random):
         c = np.concatenate(c, axis=0)
         Ns, Nc = len(s), len(c)
-        ndim = s.shape[1]
         q = np.empty_like(s)
         s0 = Nc if self.s is None else self.s
         for i in range(Ns):

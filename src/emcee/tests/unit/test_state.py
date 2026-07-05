@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 import pytest
 
@@ -20,16 +18,16 @@ def test_back_compat(seed=1234):
     rstate = rng.bit_generator.state
 
     state = State(coords, log_prob, blobs, rstate)
-    c, l, r, b = state
+    c, lp, r, b = state
     assert np.allclose(coords, c)
-    assert np.allclose(log_prob, l)
+    assert np.allclose(log_prob, lp)
     assert np.allclose(blobs, b)
     check_rstate(rstate, r)
 
     state = State(coords, log_prob, None, rstate)
-    c, l, r = state
+    c, lp, r = state
     assert np.allclose(coords, c)
-    assert np.allclose(log_prob, l)
+    assert np.allclose(log_prob, lp)
     check_rstate(rstate, r)
 
 

@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import logging
 
 import numpy as np
@@ -111,11 +109,11 @@ def integrated_time(x, c=5, tol=50, quiet=False, has_walkers=True):
     # Warn or raise in the case of non-convergence
     if np.any(flag):
         msg = (
-            "The chain is shorter than {0} times the integrated "
-            "autocorrelation time for {1} parameter(s). Use this estimate "
-            "with caution and run a longer chain!\n"
-        ).format(tol, np.sum(flag))
-        msg += "N/{0} = {1:.0f};\ntau: {2}".format(tol, n_t / tol, tau_est)
+            f"The chain is shorter than {tol} times the integrated "
+            f"autocorrelation time for {np.sum(flag)} parameter(s). Use "
+            "this estimate with caution and run a longer chain!\n"
+        )
+        msg += f"N/{tol} = {n_t / tol:.0f};\ntau: {tau_est}"
         if not quiet:
             raise AutocorrError(tau_est, msg)
         logger.warning(msg)
@@ -133,4 +131,4 @@ class AutocorrError(Exception):
 
     def __init__(self, tau, *args, **kwargs):
         self.tau = tau
-        super(AutocorrError, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)

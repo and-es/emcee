@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -26,7 +24,7 @@ class DESnookerMove(RedBlueMove):
     def __init__(self, gammas=1.7, **kwargs):
         self.gammas = gammas
         kwargs["nsplits"] = 4
-        super(DESnookerMove, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def get_proposal(self, s, c, random):
         Ns = len(s)

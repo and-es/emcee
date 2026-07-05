@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import importlib
 import logging
 
@@ -14,7 +12,7 @@ except ImportError:
     tqdm = None
 
 
-class _NoOpPBar(object):
+class _NoOpPBar:
     """This class implements the progress bar interface but does nothing"""
 
     def __init__(self):
@@ -37,10 +35,12 @@ def get_progress_bar(display, total, **kwargs):
     bar" that does nothing.
 
     Args:
-        display (bool or str): Should the bar actually show the progress? Or a
-                               string to indicate which tqdm bar (subomdule) to use.
+        display (bool or str): Should the bar actually show the progress? Or
+                               a string to indicate which tqdm bar
+                               (submodule) to use.
         total (int): The total size of the progress bar.
-        kwargs (dict): Optional keyword arguments to be passed to the tqdm call.
+        kwargs (dict): Optional keyword arguments to be passed to the tqdm
+                       call.
 
     """
     if display:

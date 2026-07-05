@@ -51,30 +51,21 @@ version_file_template = "__version__ = \"{version}\"\n"
 testpaths = ["src/emcee/tests"]
 filterwarnings = ["error::DeprecationWarning"]
 
-[tool.black]
+[tool.ruff]
 line-length = 79
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+target-version = "py39"
+src = ["src"]
 
-[tool.isort]
-line_length = 79
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-known_third_party = ["h5py", "matplotlib", "numpy", "pkg_resources", "pytest", "setuptools"]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tutorial notebooks are formatted but not linted (parity with the old
+# isort hook, which excluded them).
+"docs/tutorials/*" = ["ALL"]
+# Contains an unbreakable URL inside a docstring, where `# noqa` cannot
+# be applied.
+"src/emcee/autocorr.py" = ["E501"]
 
 [tool.coverage.run]
 parallel = true

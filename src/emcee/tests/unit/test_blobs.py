@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import warnings
 
 import numpy as np
@@ -13,7 +11,7 @@ __all__ = ["test_blob_shape"]
 blob_rng = np.random.default_rng(42)
 
 
-class BlobLogProb(object):
+class BlobLogProb:
     def __init__(self, blob_function):
         self.blob_function = blob_function
 

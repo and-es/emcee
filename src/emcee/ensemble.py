@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-
 import warnings
+from collections.abc import Iterable
 from itertools import count
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 
@@ -21,12 +20,6 @@ from .utils import (
 __all__ = ["EnsembleSampler", "walkers_independent"]
 
 try:
-    from collections.abc import Iterable
-except ImportError:
-    # for py2.7, will be an Exception in 3.8
-    from collections import Iterable
-
-try:
     # Try to import from numpy.exceptions (available in NumPy 1.25 and later)
     from numpy.exceptions import VisibleDeprecationWarning
 except ImportError:
@@ -34,7 +27,7 @@ except ImportError:
     from numpy import VisibleDeprecationWarning
 
 
-class EnsembleSampler(object):
+class EnsembleSampler:
     """An ensemble MCMC sampler
 
     If you are upgrading from an earlier version of emcee, you might notice
@@ -101,7 +94,7 @@ class EnsembleSampler(object):
         backend=None,
         vectorize=False,
         blobs_dtype=None,
-        parameter_names: Optional[Union[Dict[str, int], List[str]]] = None,
+        parameter_names: Optional[Union[dict[str, int], list[str]]] = None,
         rng=None,
         # Deprecated...
         a=None,
@@ -163,10 +156,9 @@ class EnsembleSampler(object):
             # Check the backend shape
             if self.backend.shape != (self.nwalkers, self.ndim):
                 raise ValueError(
-                    (
-                        "the shape of the backend ({0}) is incompatible with the "
-                        "shape of the sampler ({1})"
-                    ).format(self.backend.shape, (self.nwalkers, self.ndim))
+                    f"the shape of the backend ({self.backend.shape}) is "
+                    "incompatible with the shape of the sampler "
+                    f"({(self.nwalkers, self.ndim)})"
                 )
 
             # Get the last random state
@@ -235,7 +227,7 @@ class EnsembleSampler(object):
                         "`None`"
                     )
                 # Convert a list to a dict
-                parameter_names: Dict[str, int] = {
+                parameter_names: dict[str, int] = {
                     name: i for i, name in enumerate(parameter_names)
                 }
 
@@ -328,8 +320,9 @@ class EnsembleSampler(object):
             initial_state (State or ndarray[nwalkers, ndim]): The initial
                 :class:`State` or positions of the walkers in the
                 parameter space.
-            iterations (Optional[int or NoneType]): The number of steps to generate.
-                ``None`` generates an infinite stream (requires ``store=False``).
+            iterations (Optional[int or NoneType]): The number of steps to
+                generate. ``None`` generates an infinite stream (requires
+                ``store=False``).
             tune (Optional[bool]): If ``True``, the parameters of some moves
                 will be automatically tuned.
             thin_by (Optional[int]): If you only want to store and yield every
@@ -379,8 +372,7 @@ class EnsembleSampler(object):
         # generator in its current state.
         if rstate0 is not None:
             deprecation_warning(
-                "The 'rstate0' argument is deprecated, use a 'State' "
-                "instead"
+                "The 'rstate0' argument is deprecated, use a 'State' instead"
             )
             state.random_state = rstate0
         self.random_state = state.random_state
@@ -389,8 +381,7 @@ class EnsembleSampler(object):
         # now.
         if log_prob0 is not None:
             deprecation_warning(
-                "The 'log_prob0' argument is deprecated, use a 'State' "
-                "instead"
+                "The 'log_prob0' argument is deprecated, use a 'State' instead"
             )
             state.log_prob = log_prob0
         if blobs0 is not None:
@@ -411,7 +402,7 @@ class EnsembleSampler(object):
         # Deal with deprecated thin argument
         if thin is not None:
             deprecation_warning(
-                "The 'thin' argument is deprecated. " "Use 'thin_by' instead."
+                "The 'thin' argument is deprecated. Use 'thin_by' instead."
             )
 
             # Check that the thin keyword is reasonable.
@@ -507,7 +498,11 @@ class EnsembleSampler(object):
             initial_state = self._previous_state
 
         results = None
-        for results in self.sample(initial_state, iterations=nsteps, **kwargs):
+        # The loop variable is read after the loop: only the final state of
+        # the chain is kept.
+        for results in self.sample(  # noqa: B007
+            initial_state, iterations=nsteps, **kwargs
+        ):
             pass
 
         # Store so that the ``initial_state=None`` case will work
@@ -559,13 +554,13 @@ class EnsembleSampler(object):
         # log-probability)? A bare scalar or a length-1 sequence (e.g.
         # ``np.array([1.234])``) means no blobs.
         try:
-            lengths = [len(l) for l in results]
+            lengths = [len(res) for res in results]
             has_blobs = any(n > 1 for n in lengths)
         except TypeError:
             has_blobs = False
 
         if not has_blobs:
-            log_prob = np.array([_scalar(l) for l in results])
+            log_prob = np.array([_scalar(res) for res in results])
             blob = None
         else:
             if any(n <= 1 for n in lengths):
@@ -573,8 +568,8 @@ class EnsembleSampler(object):
                     "The log probability function returned blobs for some "
                     "walkers but not others"
                 )
-            blob = [l[1:] for l in results]
-            log_prob = np.array([_scalar(l[0]) for l in results])
+            blob = [res[1:] for res in results]
+            log_prob = np.array([_scalar(res[0]) for res in results])
 
             # Get the blobs dtype
             if self.blobs_dtype is not None:
@@ -688,7 +683,7 @@ class EnsembleSampler(object):
     get_autocorr_time.__doc__ = Backend.get_autocorr_time.__doc__
 
 
-class _FunctionWrapper(object):
+class _FunctionWrapper:
     """
     This is a hack to make the likelihood function pickleable when ``args``
     or ``kwargs`` are also included.
@@ -748,8 +743,8 @@ def _scaled_cond(a):
 
 
 def ndarray_to_list_of_dicts(
-    x: np.ndarray, key_map: Dict[str, Union[int, List[int]]]
-) -> List[Dict[str, Union[np.number, np.ndarray]]]:
+    x: np.ndarray, key_map: dict[str, Union[int, list[int]]]
+) -> list[dict[str, Union[np.number, np.ndarray]]]:
     """
     A helper function to convert a ``np.ndarray`` into a list
     of dictionaries of parameters. Used when parameters are named.

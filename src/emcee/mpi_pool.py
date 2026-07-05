@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-
-
 try:
     from schwimmbad import MPIPool
 except ImportError:
 
-    class MPIPool(object):
+    class MPIPool:
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "The MPIPool from emcee has been forked to "

@@ -1,11 +1,9 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 __all__ = ["Move"]
 
 
-class Move(object):
+class Move:
     def tune(self, state, accepted):
         pass
 
