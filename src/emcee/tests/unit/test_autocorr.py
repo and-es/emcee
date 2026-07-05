@@ -3,7 +3,12 @@
 import numpy as np
 import pytest
 
-from emcee.autocorr import AutocorrError, integrated_time
+from emcee.autocorr import (
+    AutocorrError,
+    auto_window,
+    function_1d,
+    integrated_time,
+)
 
 
 def get_chain(seed=1234, ndim=3, N=100000):
@@ -40,6 +45,22 @@ def test_too_short(seed=1234, ndim=3, N=100):
     with pytest.raises(AutocorrError):
         integrated_time(x)
     tau = integrated_time(x, quiet=True)  # NOQA
+
+
+def test_function_1d_invalid_dimensions():
+    with pytest.raises(ValueError, match="invalid dimensions"):
+        function_1d(np.zeros((10, 2)))
+
+
+def test_invalid_dimensions():
+    with pytest.raises(ValueError, match="invalid dimensions"):
+        integrated_time(np.zeros((10, 2, 3, 4)))
+
+
+def test_auto_window_no_crossing():
+    # If the window condition is never satisfied, auto_window must fall
+    # back to the largest available window.
+    assert auto_window(np.zeros(10), 5) == 9
 
 
 def test_autocorr_multi_works():

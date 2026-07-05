@@ -270,6 +270,51 @@ def test_longdouble_preserved(backend):
             assert np.all(s.log_prob == lp)
 
 
+@pytest.mark.parametrize("backend", all_backends)
+def test_save_step_validation(backend):
+    nwalkers, ndim, nsteps = 8, 2, 3
+    coords = np.zeros((nwalkers, ndim))
+    log_prob = np.zeros(nwalkers)
+    blobs = np.zeros(nwalkers)
+    accepted = np.ones(nwalkers, dtype=bool)
+
+    def make_state(c=None, lp=None, b=blobs):
+        return State(
+            coords if c is None else c,
+            log_prob=log_prob if lp is None else lp,
+            blobs=b,
+            random_state=(),
+        )
+
+    with backend() as be:
+        be.reset(nwalkers, ndim)
+        be.grow(nsteps, blobs)
+
+        with pytest.raises(ValueError, match="invalid coordinate dimensions"):
+            be.save_step(
+                make_state(c=np.zeros((nwalkers, ndim + 1))), accepted
+            )
+        with pytest.raises(ValueError, match="invalid log probability size"):
+            be.save_step(make_state(lp=np.zeros(nwalkers - 1)), accepted)
+        with pytest.raises(ValueError, match="invalid blobs size"):
+            be.save_step(make_state(b=np.zeros(nwalkers - 1)), accepted)
+        with pytest.raises(ValueError, match="inconsistent use of blobs"):
+            be.save_step(make_state(b=None), accepted)
+        with pytest.raises(ValueError, match="invalid acceptance size"):
+            be.save_step(make_state(), np.ones(nwalkers - 1, dtype=bool))
+
+        # A well-formed state must still be accepted.
+        be.save_step(make_state(), accepted)
+        assert be.iteration == 1
+
+    # A backend grown without blobs must reject states carrying blobs.
+    with backend() as be:
+        be.reset(nwalkers, ndim)
+        be.grow(nsteps, None)
+        with pytest.raises(ValueError, match="unexpected blobs"):
+            be.save_step(make_state(), accepted)
+
+
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")
 def test_hdf5_compression():
     with backends.TempHDFBackend(compression="gzip") as b:

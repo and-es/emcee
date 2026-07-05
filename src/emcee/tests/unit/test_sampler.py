@@ -6,7 +6,12 @@ from itertools import islice, product
 import numpy as np
 import pytest
 
-from emcee import EnsembleSampler, backends, moves, walkers_independent
+from emcee import EnsembleSampler, State, backends, moves, walkers_independent
+
+try:
+    import tqdm
+except ImportError:
+    tqdm = None
 
 __all__ = ["test_shapes", "test_errors", "test_thin", "test_vectorize"]
 
@@ -338,6 +343,195 @@ def test_walkers_independent_randn_offset_longdouble(nwalkers, ndim, offset):
         np.random.randn(nwalkers, ndim)
         + np.ones((nwalkers, ndim), dtype=np.longdouble) * offset
     )
+
+
+def test_pool_used_for_sampling():
+    class CountingPool:
+        def __init__(self):
+            self.count = 0
+
+        def map(self, func, iterable):
+            self.count += 1
+            return map(func, iterable)
+
+    sampler1 = run_sampler(None)
+
+    pool = CountingPool()
+    np.random.seed(1234)
+    coords = np.random.randn(32, 3)
+    sampler2 = EnsembleSampler(32, 3, normal_log_prob, pool=pool)
+    sampler2.run_mcmc(coords, 25)
+
+    assert pool.count > 0
+    for k in ["get_chain", "get_log_prob"]:
+        a = getattr(sampler1, k)()
+        b = getattr(sampler2, k)()
+        assert np.allclose(a, b), "inconsistent {0}".format(k)
+
+
+def test_tune(nwalkers=32, ndim=3, nsteps=5, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+
+    # The base move implements tune() as a no-op.
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+    sampler.run_mcmc(coords, nsteps, tune=True)
+    assert sampler.get_chain().shape == (nsteps, nwalkers, ndim)
+
+    # A move that overrides tune() must be called once per step.
+    class TuningMove(moves.StretchMove):
+        ncalls = 0
+
+        def tune(self, state, accepted):
+            self.ncalls += 1
+
+    move = TuningMove()
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, moves=move)
+    sampler.run_mcmc(coords, nsteps, tune=True)
+    assert move.ncalls == nsteps
+
+
+@pytest.mark.skipif(tqdm is None, reason="tqdm not available")
+def test_progress_kwargs(capsys, nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+    sampler.run_mcmc(
+        coords, 5, progress=True, progress_kwargs={"desc": "emcee-test"}
+    )
+    assert "emcee-test" in capsys.readouterr().err
+
+
+def test_deprecated_log_prob0(nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+    log_prob0 = np.array([normal_log_prob(p) for p in coords])
+    with pytest.warns(DeprecationWarning, match="log_prob0"):
+        for _ in sampler.sample(
+            coords, log_prob0=log_prob0, iterations=2, store=False
+        ):
+            pass
+
+    # A wrong-shaped log_prob0 must be caught by the shape validation.
+    with pytest.warns(DeprecationWarning, match="log_prob0"):
+        with pytest.raises(ValueError, match="incompatible input dimensions"):
+            next(
+                sampler.sample(
+                    coords,
+                    log_prob0=log_prob0[:-1],
+                    iterations=1,
+                    store=False,
+                )
+            )
+
+
+def test_deprecated_rstate0(nwalkers=32, ndim=3):
+    def one_step(global_seed, rstate0):
+        np.random.seed(1234)
+        coords = np.random.randn(nwalkers, ndim)
+        # Change the global state so that the samplers' internal random
+        # number generators start out different.
+        np.random.seed(global_seed)
+        sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+        with pytest.warns(DeprecationWarning, match="rstate0"):
+            state = next(
+                sampler.sample(
+                    coords, rstate0=rstate0, iterations=1, store=False
+                )
+            )
+        return state.coords
+
+    rstate0 = np.random.mtrand.RandomState(42).get_state()
+    assert np.allclose(one_step(1, rstate0), one_step(2, rstate0))
+
+
+def test_deprecated_blobs0(nwalkers=32, ndim=3, seed=1234):
+    def lp_blobs(p):
+        return normal_log_prob(p), 1.0
+
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, lp_blobs)
+    log_prob0 = np.array([normal_log_prob(p) for p in coords])
+    blobs0 = np.zeros(nwalkers)
+    with pytest.warns(DeprecationWarning):
+        state = next(
+            sampler.sample(
+                coords,
+                log_prob0=log_prob0,
+                blobs0=blobs0,
+                iterations=1,
+                store=False,
+            )
+        )
+    assert state.blobs is not None
+
+
+def test_deprecated_thin_no_store(nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+    with pytest.warns(DeprecationWarning, match="thin"):
+        state = sampler.run_mcmc(coords, 6, thin=3, store=False)
+    assert state.coords.shape == (nwalkers, ndim)
+
+
+def test_incompatible_backend_shape():
+    be = backends.Backend()
+    run_sampler(be)
+    with pytest.raises(ValueError, match="incompatible"):
+        EnsembleSampler(10, 2, normal_log_prob, backend=be)
+
+
+def test_nan_initial_log_prob(nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    state = State(coords, log_prob=np.full(nwalkers, np.nan))
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+    with pytest.raises(ValueError, match="initial log_prob was NaN"):
+        sampler.run_mcmc(state, 1)
+
+
+def test_log_prob_fn_returns_nan(nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, lambda p: np.nan)
+    with pytest.raises(ValueError, match="returned NaN"):
+        sampler.run_mcmc(coords, 1)
+
+
+def test_log_prob_fn_returns_non_scalar(nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, lambda p: np.zeros((1, 2)))
+    with pytest.raises(ValueError, match="should return scalar"):
+        sampler.run_mcmc(coords, 1)
+
+
+def test_compute_log_prob_invalid_coords(nwalkers=32, ndim=3, seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(nwalkers, ndim)
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
+
+    coords_inf = np.array(coords)
+    coords_inf[0, 0] = np.inf
+    with pytest.raises(ValueError, match="infinite"):
+        sampler.compute_log_prob(coords_inf)
+
+    coords_nan = np.array(coords)
+    coords_nan[0, 0] = np.nan
+    with pytest.raises(ValueError, match="NaN"):
+        sampler.compute_log_prob(coords_nan)
+
+
+def test_walkers_dependent_nonfinite(seed=1234):
+    np.random.seed(seed)
+    coords = np.random.randn(10, 2)
+    coords[0, 0] = np.inf
+    assert not walkers_independent(coords)
+    coords[0, 0] = np.nan
+    assert not walkers_independent(coords)
 
 
 @pytest.mark.parametrize("backend", all_backends)
