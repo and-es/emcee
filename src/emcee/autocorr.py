@@ -102,18 +102,24 @@ def integrated_time(
         raise ValueError("invalid dimensions")
 
     n_t, n_w, n_d = x.shape
+
+    # Compute the autocorrelation function for all walkers and parameters
+    # at once with a batched real FFT. The time axis is moved last and the
+    # array copied into C order so that the transforms run along contiguous
+    # memory; the copy also keeps the caller's array untouched.
+    y = np.moveaxis(x, 0, -1).astype(np.float64, order="C")
+    y -= np.mean(y, axis=-1, keepdims=True)
+    n = next_pow_two(n_t)
+    f = np.fft.rfft(y, n=2 * n, axis=-1)
+    acf = np.fft.irfft(f * np.conjugate(f), n=2 * n, axis=-1)[..., :n_t]
+    acf /= acf[..., :1]
+    taus = 2.0 * np.cumsum(np.mean(acf, axis=0), axis=-1) - 1.0
+
     tau_est = np.empty(n_d)
     windows = np.empty(n_d, dtype=int)
-
-    # Loop over parameters
     for d in range(n_d):
-        f = np.zeros(n_t)
-        for k in range(n_w):
-            f += function_1d(x[:, k, d])
-        f /= n_w
-        taus = 2.0 * np.cumsum(f) - 1.0
-        windows[d] = auto_window(taus, c)
-        tau_est[d] = taus[windows[d]]
+        windows[d] = auto_window(taus[d], c)
+        tau_est[d] = taus[d, windows[d]]
 
     # Check convergence
     flag = tol * tau_est > n_t
