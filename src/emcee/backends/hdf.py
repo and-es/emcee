@@ -201,7 +201,7 @@ class HDFBackend(Backend):
             if name == "blobs" and not g.attrs["has_blobs"]:
                 return None
 
-            v = g[name][discard + thin - 1 : self.iteration : thin]
+            v = g[name][discard + thin - 1 : iteration : thin]
             if flat:
                 s = list(v.shape[1:])
                 s[0] = np.prod(v.shape[:2])
