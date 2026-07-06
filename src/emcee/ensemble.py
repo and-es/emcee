@@ -116,6 +116,12 @@ class EnsembleSampler:
         self._weights = np.atleast_1d(self._weights).astype(float)
         self._weights /= np.sum(self._weights)
 
+        if vectorize and pool is not None:
+            warnings.warn(
+                "The 'pool' argument is ignored when 'vectorize' is True",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         self.pool = pool
         self.vectorize = vectorize
         self.blobs_dtype = blobs_dtype

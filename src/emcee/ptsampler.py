@@ -1,3 +1,5 @@
+from .utils import deprecation_warning
+
 try:
     from ptemcee import Sampler as PTSampler
 except ImportError:
@@ -12,3 +14,8 @@ except ImportError:
 
 
 __all__ = ["PTSampler"]
+
+deprecation_warning(
+    "The 'emcee.ptsampler' module is deprecated; use the 'ptemcee' "
+    "package (https://github.com/willvousden/ptemcee) instead"
+)

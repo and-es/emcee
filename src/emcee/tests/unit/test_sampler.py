@@ -196,6 +196,20 @@ def test_vectorize():
     assert sampler.get_chain().shape == (10, nwalkers, ndim)
 
 
+def test_vectorize_with_pool_warns(nwalkers=32, ndim=3):
+    class FakePool:
+        def map(self, fn, iterable):
+            return map(fn, iterable)
+
+    def lp_vec(p):
+        return -0.5 * np.sum(p**2, axis=1)
+
+    with pytest.warns(RuntimeWarning, match="'pool' argument is ignored"):
+        EnsembleSampler(
+            nwalkers, ndim, lp_vec, vectorize=True, pool=FakePool()
+        )
+
+
 @pytest.mark.parametrize("backend", all_backends)
 def test_pickle(backend):
     with backend() as be:

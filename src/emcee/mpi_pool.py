@@ -1,3 +1,5 @@
+from .utils import deprecation_warning
+
 try:
     from schwimmbad import MPIPool
 except ImportError:
@@ -12,3 +14,8 @@ except ImportError:
 
 
 __all__ = ["MPIPool"]
+
+deprecation_warning(
+    "The 'emcee.mpi_pool' module is deprecated; use the 'schwimmbad' "
+    "package (https://github.com/adrn/schwimmbad) instead"
+)
