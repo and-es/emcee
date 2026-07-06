@@ -11,7 +11,6 @@ from .moves import StretchMove
 from .pbar import get_progress_bar
 from .state import State
 from .utils import (
-    deprecated,
     deprecation_warning,
     ensure_rng,
     stored_state_to_generator,
@@ -33,7 +32,7 @@ class EnsembleSampler:
     """An ensemble MCMC sampler
 
     If you are upgrading from an earlier version of emcee, you might notice
-    that some arguments are now deprecated. The parameters that control the
+    that some arguments have been removed. The parameters that control the
     proposals have been moved to the :ref:`moves-user` interface (``a`` and
     ``live_dangerously``), and the parameters related to parallelization can
     now be controlled via the ``pool`` argument (:ref:`parallel`).
@@ -100,33 +99,7 @@ class EnsembleSampler:
             Union[dict[str, Union[int, list[int]]], list[str]]
         ] = None,
         rng=None,
-        # Deprecated...
-        a=None,
-        postargs=None,
-        threads=None,
-        live_dangerously=None,
-        runtime_sortingfn=None,
     ):
-        # Warn about deprecated arguments
-        if a is not None:
-            deprecation_warning(
-                "The 'a' argument is deprecated, use 'moves' instead"
-            )
-        if postargs is not None:
-            deprecation_warning(
-                "The 'postargs' argument is deprecated, use 'args' instead"
-            )
-        if threads is not None:
-            deprecation_warning("The 'threads' argument is deprecated")
-        if runtime_sortingfn is not None:
-            deprecation_warning(
-                "The 'runtime_sortingfn' argument is deprecated"
-            )
-        if live_dangerously is not None:
-            deprecation_warning(
-                "The 'live_dangerously' argument is deprecated"
-            )
-
         # Parse the move schedule
         if moves is None:
             self._moves = [StretchMove()]
@@ -307,14 +280,10 @@ class EnsembleSampler:
     def sample(
         self,
         initial_state,
-        log_prob0=None,  # Deprecated
-        rstate0=None,  # Deprecated
-        blobs0=None,  # Deprecated
         iterations=1,
         tune=False,
         skip_initial_state_check=False,
         thin_by=1,
-        thin=None,
         store=True,
         progress=False,
         progress_kwargs=None,
@@ -375,25 +344,10 @@ class EnsembleSampler:
         # Set the initial value of the random number generator. A state of
         # ``None`` (e.g. when ``initial_state`` was a plain array) leaves the
         # generator in its current state.
-        if rstate0 is not None:
-            deprecation_warning(
-                "The 'rstate0' argument is deprecated, use a 'State' instead"
-            )
-            state.random_state = rstate0
         self.random_state = state.random_state
 
         # If the initial log-probabilities were not provided, calculate them
         # now.
-        if log_prob0 is not None:
-            deprecation_warning(
-                "The 'log_prob0' argument is deprecated, use a 'State' instead"
-            )
-            state.log_prob = log_prob0
-        if blobs0 is not None:
-            deprecation_warning(
-                "The 'blobs0' argument is deprecated, use a 'State' instead"
-            )
-            state.blobs = blobs0
         if state.log_prob is None:
             state.log_prob, state.blobs = self.compute_log_prob(state.coords)
         if np.shape(state.log_prob) != (self.nwalkers,):
@@ -404,33 +358,15 @@ class EnsembleSampler:
         if np.any(np.isnan(state.log_prob)):
             raise ValueError("The initial log_prob was NaN")
 
-        # Deal with deprecated thin argument
-        if thin is not None:
-            deprecation_warning(
-                "The 'thin' argument is deprecated. Use 'thin_by' instead."
-            )
+        # Check that the thin keyword is reasonable.
+        thin_by = int(thin_by)
+        if thin_by <= 0:
+            raise ValueError("Invalid thinning argument")
 
-            # Check that the thin keyword is reasonable.
-            thin = int(thin)
-            if thin <= 0:
-                raise ValueError("Invalid thinning argument")
-
-            yield_step = 1
-            checkpoint_step = thin
-            if store:
-                nsaves = iterations // checkpoint_step
-                self.backend.grow(nsaves, state.blobs)
-
-        else:
-            # Check that the thin keyword is reasonable.
-            thin_by = int(thin_by)
-            if thin_by <= 0:
-                raise ValueError("Invalid thinning argument")
-
-            yield_step = thin_by
-            checkpoint_step = thin_by
-            if store:
-                self.backend.grow(iterations, state.blobs)
+        yield_step = thin_by
+        checkpoint_step = thin_by
+        if store:
+            self.backend.grow(iterations, state.blobs)
 
         # Set up a wrapper around the relevant model functions
         if self.pool is not None:
@@ -622,43 +558,6 @@ class EnsembleSampler:
         """The fraction of proposed steps that were accepted"""
         return self.backend.accepted / float(self.backend.iteration)
 
-    @property
-    @deprecated("get_chain()")
-    def chain(self):  # pragma: no cover
-        chain = self.get_chain()
-        return np.swapaxes(chain, 0, 1)
-
-    @property
-    @deprecated("get_chain(flat=True)")
-    def flatchain(self):  # pragma: no cover
-        return self.get_chain(flat=True)
-
-    @property
-    @deprecated("get_log_prob()")
-    def lnprobability(self):  # pragma: no cover
-        log_prob = self.get_log_prob()
-        return np.swapaxes(log_prob, 0, 1)
-
-    @property
-    @deprecated("get_log_prob(flat=True)")
-    def flatlnprobability(self):  # pragma: no cover
-        return self.get_log_prob(flat=True)
-
-    @property
-    @deprecated("get_blobs()")
-    def blobs(self):  # pragma: no cover
-        return self.get_blobs()
-
-    @property
-    @deprecated("get_blobs(flat=True)")
-    def flatblobs(self):  # pragma: no cover
-        return self.get_blobs(flat=True)
-
-    @property
-    @deprecated("get_autocorr_time")
-    def acor(self):  # pragma: no cover
-        return self.get_autocorr_time()
-
     def get_chain(self, **kwargs):
         return self.get_value("chain", **kwargs)
 
@@ -726,25 +625,6 @@ def walkers_independent(coords):
     C_colsum = np.sqrt(np.sum(C**2, axis=0))
     C /= C_colsum
     return np.linalg.cond(C.astype(float)) <= 1e8
-
-
-def walkers_independent_cov(coords):
-    C = np.cov(coords, rowvar=False)
-    if np.any(np.isnan(C)):
-        return False
-    return _scaled_cond(np.atleast_2d(C)) <= 1e8
-
-
-def _scaled_cond(a):
-    asum = np.sqrt((a**2).sum(axis=0))[None, :]
-    if np.any(asum == 0):
-        return np.inf
-    b = a / asum
-    bsum = np.sqrt((b**2).sum(axis=1))[:, None]
-    if np.any(bsum == 0):
-        return np.inf
-    c = b / bsum
-    return np.linalg.cond(c.astype(float))
 
 
 def ndarray_to_list_of_dicts(

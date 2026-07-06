@@ -11,7 +11,7 @@ try:
 except ImportError:
     tqdm = None  # ty: ignore[invalid-assignment]
 
-__all__ = ["test_shapes", "test_errors", "test_thin", "test_vectorize"]
+__all__ = ["test_shapes", "test_errors", "test_vectorize"]
 
 all_backends = backends.get_test_backends()
 
@@ -57,17 +57,6 @@ def test_shapes(backend, moves, nwalkers=32, ndim=3, nsteps=10, seed=1234):
         assert tau.shape == (ndim,)
 
         # Check the shapes.
-        with pytest.warns(DeprecationWarning):
-            assert sampler.chain.shape == (
-                nwalkers,
-                nsteps,
-                ndim,
-            ), "incorrect coordinate dimensions"
-        with pytest.warns(DeprecationWarning):
-            assert sampler.lnprobability.shape == (
-                nwalkers,
-                nsteps,
-            ), "incorrect probability dimensions"
         assert sampler.get_chain().shape == (
             nsteps,
             nwalkers,
@@ -138,7 +127,6 @@ def run_sampler(
     ndim=3,
     nsteps=25,
     seed=1234,
-    thin=None,
     thin_by=1,
     progress=False,
     store=True,
@@ -150,33 +138,11 @@ def run_sampler(
     sampler.run_mcmc(
         coords,
         nsteps,
-        thin=thin,
         thin_by=thin_by,
         progress=progress,
         store=store,
     )
     return sampler
-
-
-@pytest.mark.parametrize("backend", all_backends)
-def test_thin(backend):
-    with backend() as be:
-        with pytest.raises(ValueError):
-            with pytest.warns(DeprecationWarning):
-                run_sampler(be, thin=-1)
-        with pytest.raises(ValueError):
-            with pytest.warns(DeprecationWarning):
-                run_sampler(be, thin=0.1)
-        thinby = 3
-        sampler1 = run_sampler(None)
-        with pytest.warns(DeprecationWarning):
-            sampler2 = run_sampler(be, thin=thinby)
-        for k in ["get_chain", "get_log_prob"]:
-            a = getattr(sampler1, k)()[thinby - 1 :: thinby]
-            b = getattr(sampler2, k)()
-            c = getattr(sampler1, k)(thin=thinby)
-            assert np.allclose(a, b), f"inconsistent {k}"
-            assert np.allclose(a, c), f"inconsistent {k}"
 
 
 @pytest.mark.parametrize(
@@ -407,77 +373,6 @@ def test_progress_kwargs(capsys, nwalkers=32, ndim=3, seed=1234):
     assert "emcee-test" in capsys.readouterr().err
 
 
-def test_deprecated_log_prob0(nwalkers=32, ndim=3, seed=1234):
-    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
-    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
-    log_prob0 = np.array([normal_log_prob(p) for p in coords])
-    with pytest.warns(DeprecationWarning, match="log_prob0"):
-        for _ in sampler.sample(
-            coords, log_prob0=log_prob0, iterations=2, store=False
-        ):
-            pass
-
-    # A wrong-shaped log_prob0 must be caught by the shape validation.
-    with pytest.warns(DeprecationWarning, match="log_prob0"):
-        with pytest.raises(ValueError, match="incompatible input dimensions"):
-            next(
-                sampler.sample(
-                    coords,
-                    log_prob0=log_prob0[:-1],
-                    iterations=1,
-                    store=False,
-                )
-            )
-
-
-def test_deprecated_rstate0(nwalkers=32, ndim=3):
-    def one_step(global_seed, rstate0):
-        coords = np.random.default_rng(1234).standard_normal((nwalkers, ndim))
-        # Perturb the global RNG differently per call to prove that the
-        # sampler stream depends only on ``rstate0``, not global state.
-        np.random.seed(global_seed)
-        sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
-        with pytest.warns(DeprecationWarning, match="rstate0"):
-            state = next(
-                sampler.sample(
-                    coords, rstate0=rstate0, iterations=1, store=False
-                )
-            )
-        return state.coords
-
-    rstate0 = np.random.mtrand.RandomState(42).get_state()
-    assert np.allclose(one_step(1, rstate0), one_step(2, rstate0))
-
-
-def test_deprecated_blobs0(nwalkers=32, ndim=3, seed=1234):
-    def lp_blobs(p):
-        return normal_log_prob(p), 1.0
-
-    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
-    sampler = EnsembleSampler(nwalkers, ndim, lp_blobs)
-    log_prob0 = np.array([normal_log_prob(p) for p in coords])
-    blobs0 = np.zeros(nwalkers)
-    with pytest.warns(DeprecationWarning):
-        state = next(
-            sampler.sample(
-                coords,
-                log_prob0=log_prob0,
-                blobs0=blobs0,
-                iterations=1,
-                store=False,
-            )
-        )
-    assert state.blobs is not None
-
-
-def test_deprecated_thin_no_store(nwalkers=32, ndim=3, seed=1234):
-    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
-    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob)
-    with pytest.warns(DeprecationWarning, match="thin"):
-        state = sampler.run_mcmc(coords, 6, thin=3, store=False)
-    assert state.coords.shape == (nwalkers, ndim)
-
-
 def test_incompatible_backend_shape():
     be = backends.Backend()
     run_sampler(be)
@@ -505,22 +400,6 @@ def test_log_prob_fn_returns_non_scalar(nwalkers=32, ndim=3, seed=1234):
     sampler = EnsembleSampler(nwalkers, ndim, lambda p: np.zeros((1, 2)))
     with pytest.raises(ValueError, match="should return scalar"):
         sampler.run_mcmc(coords, 1)
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        dict(a=2.0),
-        dict(postargs=[1.0]),
-        dict(threads=2),
-        dict(live_dangerously=True),
-        dict(runtime_sortingfn=sorted),
-    ],
-)
-def test_deprecated_init_args(kwargs, nwalkers=32, ndim=3):
-    (name,) = kwargs
-    with pytest.warns(DeprecationWarning, match=name):
-        EnsembleSampler(nwalkers, ndim, normal_log_prob, **kwargs)
 
 
 def test_random_state_setter(nwalkers=32, ndim=3):
