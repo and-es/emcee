@@ -12,9 +12,9 @@ class WalkMove(RedBlueMove):
     parallelization as described in `Foreman-Mackey et al. (2013)
     <https://arxiv.org/abs/1202.3665>`_.
 
-    :param s: (optional)
-        The number of helper walkers to use. By default it will use all the
-        walkers in the complement.
+    Args:
+        s (Optional[int]): The number of helper walkers to use. By default
+            it will use all the walkers in the complement.
 
     """
 

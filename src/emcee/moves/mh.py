@@ -34,11 +34,13 @@ class MHMove(Move):
         """Use the move to generate a proposal and compute the acceptance
 
         Args:
-            coords: The initial coordinates of the walkers.
-            log_probs: The initial log probabilities of the walkers.
-            log_prob_fn: A function that computes the log probabilities for a
-                subset of walkers.
-            random: A ``numpy.random.Generator`` instance.
+            model (Model): The model functions and random number generator
+                used to compute the proposal.
+            state (State): The current state of the ensemble.
+
+        Returns:
+            A tuple of the updated :class:`State` and a vector of booleans
+            indicating which walkers were accepted.
 
         """
         # Check to make sure that the dimensions match.

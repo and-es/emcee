@@ -43,6 +43,19 @@ class RedBlueMove(Move):
         pass
 
     def get_proposal(self, sample, complement, random):
+        """Generate a proposal for a sub-ensemble
+
+        Args:
+            sample: The coordinates of the walkers being updated.
+            complement: A list of coordinate arrays, one per complementary
+                sub-ensemble.
+            random: A ``numpy.random.Generator`` instance.
+
+        Returns:
+            A tuple of the proposed coordinates and a vector of the
+            log-ratios of the proposal probabilities.
+
+        """
         raise NotImplementedError(
             "The proposal must be implemented by subclasses"
         )
@@ -51,11 +64,13 @@ class RedBlueMove(Move):
         """Use the move to generate a proposal and compute the acceptance
 
         Args:
-            coords: The initial coordinates of the walkers.
-            log_probs: The initial log probabilities of the walkers.
-            log_prob_fn: A function that computes the log probabilities for a
-                subset of walkers.
-            random: A ``numpy.random.Generator`` instance.
+            model (Model): The model functions and random number generator
+                used to compute the proposal.
+            state (State): The current state of the ensemble.
+
+        Returns:
+            A tuple of the updated :class:`State` and a vector of booleans
+            indicating which walkers were accepted.
 
         """
         # Check that the dimensions are compatible.

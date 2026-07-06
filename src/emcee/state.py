@@ -18,7 +18,8 @@ class State:
         log_prob (ndarray[nwalkers, ndim], Optional): Log posterior
             probabilities for the  walkers at positions given by ``coords``.
         blobs (Optional): The metadata “blobs” associated with the current
-            position. The value is only returned if lnpostfn returns blobs too.
+            position. The value is only returned if ``log_prob_fn`` returns
+            blobs too.
         random_state (Optional): The current state of the random number
             generator: the ``bit_generator.state`` dict of a
             ``numpy.random.Generator`` (or a legacy

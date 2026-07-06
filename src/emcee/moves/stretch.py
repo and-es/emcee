@@ -12,8 +12,9 @@ class StretchMove(RedBlueMove):
     parallelization as described in `Foreman-Mackey et al. (2013)
     <https://arxiv.org/abs/1202.3665>`_.
 
-    :param a: (optional)
-        The stretch scale parameter. (default: ``2.0``)
+    Args:
+        a (Optional[float]): The stretch scale parameter.
+            (default: ``2.0``)
 
     """
 
