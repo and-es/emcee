@@ -20,7 +20,7 @@ jobs:
         # (~82% coverage), so they get a looser gate than the extras
         # jobs.
         include:
-          - python-version: "3.10"
+          - python-version: "3.11"
             os: "ubuntu-latest"
             extras: false
             coverage-gate: 80

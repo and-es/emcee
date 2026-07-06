@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
 
@@ -251,7 +251,7 @@ class Backend:
         self.random_state = state.random_state
         self.iteration += 1
 
-    def __enter__(self) -> Backend:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(

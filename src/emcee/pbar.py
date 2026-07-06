@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-from typing import Any, Protocol
+from typing import Any, Protocol, Self
 
 __all__ = ["get_progress_bar"]
 
@@ -18,7 +18,7 @@ except ImportError:
 class ProgressBar(Protocol):
     """The interface of the progress bars used by the sampler"""
 
-    def __enter__(self) -> ProgressBar: ...
+    def __enter__(self) -> Self: ...
 
     def __exit__(
         self, exc_type: object, exc_value: object, traceback: object, /
@@ -30,7 +30,7 @@ class ProgressBar(Protocol):
 class _NoOpPBar:
     """This class implements the progress bar interface but does nothing"""
 
-    def __enter__(self) -> _NoOpPBar:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, *args: object) -> None:

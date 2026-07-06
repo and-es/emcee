@@ -138,7 +138,7 @@ class EnsembleSampler:
             # exhausted by the ``zip`` probe below
             move_list = list(moves)
             try:
-                all_moves, weights = zip(*move_list)
+                all_moves, weights = zip(*move_list, strict=True)
             except TypeError:
                 # The TypeError from ``zip`` proves that ``moves`` holds
                 # plain moves, not ``(move, weight)`` pairs, which the
