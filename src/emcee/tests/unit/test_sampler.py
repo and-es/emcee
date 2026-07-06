@@ -96,6 +96,8 @@ def test_errors(backend, nwalkers=32, ndim=3, nsteps=5, seed=1234):
             sampler.get_chain()
         with pytest.raises(AttributeError):
             sampler.get_log_prob()
+        with pytest.raises(AttributeError):
+            _ = sampler.acceptance_fraction
 
         # What about not storing the chain.
         sampler.run_mcmc(coords, nsteps, store=False)

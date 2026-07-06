@@ -581,6 +581,12 @@ class EnsembleSampler:
     @property
     def acceptance_fraction(self) -> np.ndarray:
         """The fraction of proposed steps that were accepted"""
+        if self.backend.iteration <= 0:
+            raise AttributeError(
+                "you must run the sampler with "
+                "'store == True' before accessing the "
+                "results"
+            )
         return self.backend.accepted / float(self.backend.iteration)
 
     def get_chain(self, **kwargs: Any) -> np.ndarray:
