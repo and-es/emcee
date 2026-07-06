@@ -196,17 +196,22 @@ class Backend:
 
         """
         self._check_blobs(blobs)
-        i = ngrow - (len(self.chain) - self.iteration)
+        # An abandoned run can leave more reserved space than requested
+        i = max(0, ngrow - (len(self.chain) - self.iteration))
         a = np.empty((i, self.nwalkers, self.ndim), dtype=self.dtype)
         self.chain = np.concatenate((self.chain, a), axis=0)
         a = np.empty((i, self.nwalkers), dtype=self.dtype)
         self.log_prob = np.concatenate((self.log_prob, a), axis=0)
         if blobs is not None:
             dt = np.dtype((blobs.dtype, blobs.shape[1:]))
-            a = np.empty((i, self.nwalkers), dtype=dt)
             if self.blobs is None:
-                self.blobs = a
+                # Cover any previously reserved space too, not just the
+                # newly added rows
+                self.blobs = np.empty(
+                    (len(self.chain), self.nwalkers), dtype=dt
+                )
             else:
+                a = np.empty((i, self.nwalkers), dtype=dt)
                 self.blobs = np.concatenate((self.blobs, a), axis=0)
 
     def _check(self, state: State, accepted: np.ndarray) -> None:

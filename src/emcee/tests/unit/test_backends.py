@@ -406,6 +406,25 @@ def test_save_step_validation(backend):
             be.save_step(make_state(), accepted)
 
 
+@pytest.mark.parametrize("backend", all_backends)
+def test_grow_after_abandoned_run(backend):
+    # Abandoning a sample() generator leaves reserved space in the chain;
+    # resuming with fewer steps than the leftover space must not crash.
+    nwalkers, ndim = 8, 2
+    with backend() as be:
+        sampler = EnsembleSampler(
+            nwalkers, ndim, normal_log_prob, backend=be, rng=1
+        )
+        coords = np.random.default_rng(42).standard_normal((nwalkers, ndim))
+        gen = sampler.sample(coords, iterations=10)
+        state = next(gen)
+        state = next(gen)
+        del gen
+        sampler.run_mcmc(state, 3)
+        assert sampler.iteration == 5
+        assert len(sampler.get_chain()) == 5
+
+
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")
 def test_hdf5_compression():
     with backends.TempHDFBackend(compression="gzip") as b:
