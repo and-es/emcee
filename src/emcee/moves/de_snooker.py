@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -21,12 +25,19 @@ class DESnookerMove(RedBlueMove):
 
     """
 
-    def __init__(self, gammas=1.7, **kwargs):
+    gammas: float
+
+    def __init__(self, gammas: float = 1.7, **kwargs: Any) -> None:
         self.gammas = gammas
         kwargs["nsplits"] = 4
         super().__init__(**kwargs)
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
         s, c = sample, complement
         Ns = len(s)
         Nc = list(map(len, c))

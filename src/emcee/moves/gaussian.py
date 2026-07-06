@@ -1,6 +1,13 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 
 from .mh import MHMove
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 __all__ = ["GaussianMove"]
 
@@ -29,10 +36,17 @@ class GaussianMove(MHMove):
 
     """
 
-    def __init__(self, cov, mode="vector", factor=None):
+    def __init__(
+        self,
+        cov: ArrayLike,
+        mode: str = "vector",
+        factor: float | None = None,
+    ) -> None:
         # Parse the proposal type.
+        ndim: int | None
         try:
-            float(cov)
+            # EAFP probe: only a scalar ``cov`` is float-convertible
+            float(cov)  # ty: ignore[invalid-argument-type]
 
         except TypeError:
             cov = np.atleast_1d(cov)
@@ -60,7 +74,12 @@ class GaussianMove(MHMove):
 class _isotropic_proposal:
     allowed_modes = ["vector", "random", "sequential"]
 
-    def __init__(self, scale, factor, mode):
+    index: int
+    scale: Any
+    mode: str
+    _log_factor: float | None
+
+    def __init__(self, scale: Any, factor: float | None, mode: str) -> None:
         self.index = 0
         self.scale = scale
         if factor is None:
@@ -77,17 +96,21 @@ class _isotropic_proposal:
             )
         self.mode = mode
 
-    def get_factor(self, rng):
+    def get_factor(self, rng: np.random.Generator) -> float:
         if self._log_factor is None:
             return 1.0
         return np.exp(rng.uniform(-self._log_factor, self._log_factor))
 
-    def get_updated_vector(self, rng, x0):
+    def get_updated_vector(
+        self, rng: np.random.Generator, x0: np.ndarray
+    ) -> np.ndarray:
         return x0 + self.get_factor(rng) * self.scale * rng.standard_normal(
             x0.shape
         )
 
-    def __call__(self, x0, rng):
+    def __call__(
+        self, x0: np.ndarray, rng: np.random.Generator
+    ) -> tuple[np.ndarray, np.ndarray]:
         nw, nd = x0.shape
         xnew = self.get_updated_vector(rng, x0)
         if self.mode == "random":
@@ -103,7 +126,9 @@ class _isotropic_proposal:
 
 
 class _diagonal_proposal(_isotropic_proposal):
-    def get_updated_vector(self, rng, x0):
+    def get_updated_vector(
+        self, rng: np.random.Generator, x0: np.ndarray
+    ) -> np.ndarray:
         return x0 + self.get_factor(rng) * self.scale * rng.standard_normal(
             x0.shape
         )
@@ -112,7 +137,9 @@ class _diagonal_proposal(_isotropic_proposal):
 class _proposal(_isotropic_proposal):
     allowed_modes = ["vector"]
 
-    def get_updated_vector(self, rng, x0):
+    def get_updated_vector(
+        self, rng: np.random.Generator, x0: np.ndarray
+    ) -> np.ndarray:
         return x0 + self.get_factor(rng) * rng.multivariate_normal(
             np.zeros(len(self.scale)), self.scale
         )

@@ -1,13 +1,19 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from numpy.typing import ArrayLike
 
 __all__ = ["function_1d", "integrated_time", "AutocorrError"]
 
 logger = logging.getLogger(__name__)
 
 
-def next_pow_two(n):
+def next_pow_two(n: int) -> int:
     """Returns the next power of two greater than or equal to `n`"""
     i = 1
     while i < n:
@@ -15,7 +21,7 @@ def next_pow_two(n):
     return i
 
 
-def function_1d(x):
+def function_1d(x: ArrayLike) -> np.ndarray:
     """Estimate the normalized autocorrelation function of a 1-D series
 
     Args:
@@ -37,14 +43,20 @@ def function_1d(x):
     return acf
 
 
-def auto_window(taus, c):
+def auto_window(taus: np.ndarray, c: float) -> int:
     m = np.arange(len(taus)) < c * taus
     if np.any(m):
-        return np.argmin(m)
+        return int(np.argmin(m))
     return len(taus) - 1
 
 
-def integrated_time(x, c=5, tol=50, quiet=False, has_walkers=True):
+def integrated_time(
+    x: ArrayLike,
+    c: float = 5,
+    tol: float = 50,
+    quiet: bool = False,
+    has_walkers: bool = True,
+) -> np.ndarray:
     """Estimate the integrated autocorrelation time of a time series.
 
     This estimate uses the iterative procedure described on page 16 of
@@ -129,6 +141,8 @@ class AutocorrError(Exception):
 
     """
 
-    def __init__(self, tau, *args, **kwargs):
+    tau: np.ndarray
+
+    def __init__(self, tau: np.ndarray, *args: Any, **kwargs: Any) -> None:
         self.tau = tau
         super().__init__(*args, **kwargs)

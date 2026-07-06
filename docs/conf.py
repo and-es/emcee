@@ -20,6 +20,10 @@ myst_enable_extensions = ["dollarmath", "colon_fence"]
 source_suffix = ".rst"
 master_doc = "index"
 
+# The Google-style docstrings already describe the argument and return
+# types, so keep the type hints out of the rendered signatures.
+autodoc_typehints = "none"
+
 project = "emcee"
 copyright = "2012-2026, Dan Foreman-Mackey & contributors"
 version = __version__

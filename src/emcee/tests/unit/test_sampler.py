@@ -108,7 +108,7 @@ def test_errors(backend, nwalkers=32, ndim=3, nsteps=5, seed=1234):
 
         coords2 = rng.standard_normal((nwalkers, ndim + 1))
         with pytest.raises(ValueError):
-            list(sampler.run_mcmc(coords2, nsteps))
+            sampler.run_mcmc(coords2, nsteps)
 
         # Ensure that a warning is logged if the inital coords don't allow
         # the chain to explore all of parameter space, and that one is not
@@ -489,6 +489,7 @@ def test_random_state_set_mid_run(nwalkers=32, ndim=3):
         State(mid_coords, log_prob=mid_log_prob), 1, store=False
     )
 
+    assert final2 is not None
     assert np.allclose(final1.coords, final2.coords)
 
 
@@ -521,7 +522,12 @@ def test_rng_argument(nwalkers=32, ndim=3):
 
     # Invalid seeds raise a ``TypeError``.
     with pytest.raises(TypeError):
-        EnsembleSampler(nwalkers, ndim, normal_log_prob, rng="invalid")
+        EnsembleSampler(
+            nwalkers,
+            ndim,
+            normal_log_prob,
+            rng="invalid",  # ty: ignore[invalid-argument-type]
+        )
 
     # An explicit ``rng`` takes precedence over the backend's state.
     be = backends.Backend()

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -25,7 +29,9 @@ class KDEMove(RedBlueMove):
 
     """
 
-    def __init__(self, bw_method=None, **kwargs):
+    bw_method: Any
+
+    def __init__(self, bw_method: Any = None, **kwargs: Any) -> None:
         if gaussian_kde is None:
             raise ImportError(
                 "you need scipy.stats.gaussian_kde to use the KDEMove"
@@ -33,7 +39,12 @@ class KDEMove(RedBlueMove):
         self.bw_method = bw_method
         super().__init__(**kwargs)
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
         s = sample
         c = np.concatenate(complement, axis=0)
         kde = gaussian_kde(c.T, bw_method=self.bw_method)

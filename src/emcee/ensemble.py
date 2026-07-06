@@ -1,13 +1,15 @@
+from __future__ import annotations
+
 import warnings
 from collections.abc import Iterable, Mapping
 from itertools import count
-from typing import Optional, Union
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .backends import Backend
 from .model import Model
-from .moves import StretchMove
+from .moves import Move, StretchMove
 from .pbar import get_progress_bar
 from .state import State
 from .utils import (
@@ -15,6 +17,11 @@ from .utils import (
     ensure_rng,
     stored_state_to_generator,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Generator, Sequence
+
+    from numpy.typing import ArrayLike, DTypeLike
 
 __all__ = ["EnsembleSampler", "walkers_independent"]
 
@@ -83,37 +90,66 @@ class EnsembleSampler:
 
     """
 
+    _moves: Sequence[Move]
+    _weights: np.ndarray
+    pool: Any
+    vectorize: bool
+    blobs_dtype: DTypeLike | None
+    ndim: int
+    nwalkers: int
+    backend: Backend
+    _previous_state: State | None
+    _random: np.random.Generator
+    log_prob_fn: _FunctionWrapper
+    params_are_named: bool
+    parameter_names: Mapping[str, int | list[int]]
+
     def __init__(
         self,
-        nwalkers,
-        ndim,
-        log_prob_fn,
-        pool=None,
-        moves=None,
-        args=None,
-        kwargs=None,
-        backend=None,
-        vectorize=False,
-        blobs_dtype=None,
-        parameter_names: Optional[
-            Union[dict[str, Union[int, list[int]]], list[str]]
-        ] = None,
-        rng=None,
-    ):
+        nwalkers: int,
+        ndim: int,
+        log_prob_fn: Callable[..., Any],
+        pool: Any = None,
+        moves: Move | Iterable[Move] | Iterable[tuple[Move, float]] | None = (
+            None
+        ),
+        args: Iterable[Any] | None = None,
+        kwargs: dict[str, Any] | None = None,
+        backend: Backend | None = None,
+        vectorize: bool = False,
+        blobs_dtype: DTypeLike | None = None,
+        parameter_names: dict[str, int | list[int]] | list[str] | None = None,
+        rng: int
+        | Sequence[int]
+        | np.random.SeedSequence
+        | np.random.BitGenerator
+        | np.random.Generator
+        | np.random.RandomState
+        | None = None,
+    ) -> None:
         # Parse the move schedule
+        all_moves: Sequence[Move]
+        weights: Any
         if moves is None:
-            self._moves = [StretchMove()]
-            self._weights = [1.0]
+            all_moves = [StretchMove()]
+            weights = [1.0]
         elif isinstance(moves, Iterable):
+            # Materialize first so that a one-shot iterator is not
+            # exhausted by the ``zip`` probe below
+            move_list = list(moves)
             try:
-                self._moves, self._weights = zip(*moves)
+                all_moves, weights = zip(*move_list)
             except TypeError:
-                self._moves = moves
-                self._weights = np.ones(len(moves))
+                # The TypeError from ``zip`` proves that ``moves`` holds
+                # plain moves, not ``(move, weight)`` pairs, which the
+                # checker cannot infer from the union
+                all_moves = move_list  # ty: ignore[invalid-assignment]
+                weights = np.ones(len(move_list))
         else:
-            self._moves = [moves]
-            self._weights = [1.0]
-        self._weights = np.atleast_1d(self._weights).astype(float)
+            all_moves = [moves]
+            weights = [1.0]
+        self._moves = all_moves
+        self._weights = np.atleast_1d(weights).astype(float)
         self._weights /= np.sum(self._weights)
 
         if vectorize and pool is not None:
@@ -179,8 +215,8 @@ class EnsembleSampler:
         self.log_prob_fn = _FunctionWrapper(log_prob_fn, args, kwargs)
 
         # Save the parameter names
-        self.params_are_named: bool = parameter_names is not None
-        if self.params_are_named:
+        self.params_are_named = parameter_names is not None
+        if parameter_names is not None:
             if not isinstance(parameter_names, (list, dict)):
                 raise TypeError(
                     "'parameter_names' must be a list or dict, got "
@@ -203,6 +239,7 @@ class EnsembleSampler:
             if len(uniq) != len(parameter_names):
                 raise ValueError(f"duplicate parameters: {dupes}")
 
+            named_parameters: dict[str, int | list[int]]
             if isinstance(parameter_names, list):
                 # Check for all named
                 if len(parameter_names) != ndim:
@@ -211,29 +248,30 @@ class EnsembleSampler:
                         "`None`"
                     )
                 # Convert a list to a dict
-                parameter_names: dict[str, int] = {
+                named_parameters = {
                     name: i for i, name in enumerate(parameter_names)
                 }
+            else:
+                named_parameters = parameter_names
 
             # Check not too many names
-            if len(parameter_names) > ndim:
+            if len(named_parameters) > ndim:
                 raise ValueError("too many names")
 
             # Check all indices appear
             values = [
                 v if isinstance(v, list) else [v]
-                for v in parameter_names.values()
+                for v in named_parameters.values()
             ]
-            values = [item for sublist in values for item in sublist]
-            values = set(values)
-            if values != set(np.arange(ndim)):
+            flat_values = {item for sublist in values for item in sublist}
+            if flat_values != set(np.arange(ndim)):
                 raise ValueError(
                     f"not all values appear -- set should be 0 to {ndim - 1}"
                 )
-            self.parameter_names = parameter_names
+            self.parameter_names = named_parameters
 
     @property
-    def random_state(self):
+    def random_state(self) -> Mapping[str, Any]:
         """
         The state of the internal random number generator: the
         ``bit_generator.state`` dict of a ``numpy.random.Generator``.
@@ -246,7 +284,7 @@ class EnsembleSampler:
         return self._random.bit_generator.state
 
     @random_state.setter  # NOQA
-    def random_state(self, state):
+    def random_state(self, state: Any) -> None:
         """
         Set the state of the internal random number generator. ``None`` is
         ignored; an invalid state raises a ``RuntimeWarning`` and leaves the
@@ -266,17 +304,17 @@ class EnsembleSampler:
             )
 
     @property
-    def iteration(self):
+    def iteration(self) -> int:
         return self.backend.iteration
 
-    def reset(self):
+    def reset(self) -> None:
         """
         Reset the bookkeeping parameters
 
         """
         self.backend.reset(self.nwalkers, self.ndim)
 
-    def __getstate__(self):
+    def __getstate__(self) -> dict[str, Any]:
         # In order to be generally picklable, we need to discard the pool
         # object before trying.
         d = self.__dict__.copy()
@@ -285,15 +323,15 @@ class EnsembleSampler:
 
     def sample(
         self,
-        initial_state,
-        iterations=1,
-        tune=False,
-        skip_initial_state_check=False,
-        thin_by=1,
-        store=True,
-        progress=False,
-        progress_kwargs=None,
-    ):
+        initial_state: State | ArrayLike,
+        iterations: int | None = 1,
+        tune: bool = False,
+        skip_initial_state_check: bool = False,
+        thin_by: int = 1,
+        store: bool = True,
+        progress: bool | str = False,
+        progress_kwargs: dict[str, Any] | None = None,
+    ) -> Generator[State, None, None]:
         """Advance the chain as a generator
 
         Args:
@@ -331,7 +369,7 @@ class EnsembleSampler:
         :class:`State` of the ensemble.
 
         """
-        if iterations is None and store:
+        if store and iterations is None:
             raise ValueError("'store' must be False when 'iterations' is None")
         # Interpret the input as a walker state and check the dimensions.
         state = State(initial_state, copy=True)
@@ -371,7 +409,7 @@ class EnsembleSampler:
 
         yield_step = thin_by
         checkpoint_step = thin_by
-        if store:
+        if store and iterations is not None:
             self.backend.grow(iterations, state.blobs)
 
         # Set up a wrapper around the relevant model functions
@@ -421,7 +459,12 @@ class EnsembleSampler:
                 # sorts of fun stuff with the results so far.
                 yield state
 
-    def run_mcmc(self, initial_state, nsteps, **kwargs):
+    def run_mcmc(
+        self,
+        initial_state: State | ArrayLike | None,
+        nsteps: int,
+        **kwargs: Any,
+    ) -> State | None:
         """
         Iterate :func:`sample` for ``nsteps`` iterations and return the result
 
@@ -457,7 +500,9 @@ class EnsembleSampler:
 
         return results
 
-    def compute_log_prob(self, coords):
+    def compute_log_prob(
+        self, coords: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         """Calculate the vector of log-probability for the walkers
 
         Args:
@@ -560,34 +605,34 @@ class EnsembleSampler:
         return log_prob, blob
 
     @property
-    def acceptance_fraction(self):
+    def acceptance_fraction(self) -> np.ndarray:
         """The fraction of proposed steps that were accepted"""
         return self.backend.accepted / float(self.backend.iteration)
 
-    def get_chain(self, **kwargs):
+    def get_chain(self, **kwargs: Any) -> np.ndarray:
         return self.get_value("chain", **kwargs)
 
     get_chain.__doc__ = Backend.get_chain.__doc__
 
-    def get_blobs(self, **kwargs):
+    def get_blobs(self, **kwargs: Any) -> np.ndarray | None:
         return self.get_value("blobs", **kwargs)
 
     get_blobs.__doc__ = Backend.get_blobs.__doc__
 
-    def get_log_prob(self, **kwargs):
+    def get_log_prob(self, **kwargs: Any) -> np.ndarray:
         return self.get_value("log_prob", **kwargs)
 
     get_log_prob.__doc__ = Backend.get_log_prob.__doc__
 
-    def get_last_sample(self, **kwargs):
+    def get_last_sample(self, **kwargs: Any) -> State:
         return self.backend.get_last_sample()
 
     get_last_sample.__doc__ = Backend.get_last_sample.__doc__
 
-    def get_value(self, name, **kwargs):
+    def get_value(self, name: str, **kwargs: Any) -> Any:
         return self.backend.get_value(name, **kwargs)
 
-    def get_autocorr_time(self, **kwargs):
+    def get_autocorr_time(self, **kwargs: Any) -> np.ndarray:
         return self.backend.get_autocorr_time(**kwargs)
 
     get_autocorr_time.__doc__ = Backend.get_autocorr_time.__doc__
@@ -600,12 +645,21 @@ class _FunctionWrapper:
 
     """
 
-    def __init__(self, f, args, kwargs):
+    f: Callable[..., Any]
+    args: Sequence[Any]
+    kwargs: dict[str, Any]
+
+    def __init__(
+        self,
+        f: Callable[..., Any],
+        args: Iterable[Any] | None,
+        kwargs: dict[str, Any] | None,
+    ) -> None:
         self.f = f
-        self.args = args or []
+        self.args = list(args) if args is not None else []
         self.kwargs = kwargs or {}
 
-    def __call__(self, x):
+    def __call__(self, x: Any) -> Any:
         try:
             return self.f(x, *self.args, **self.kwargs)
         except Exception:  # pragma: no cover
@@ -620,7 +674,8 @@ class _FunctionWrapper:
             raise
 
 
-def walkers_independent(coords):
+def walkers_independent(coords: ArrayLike) -> bool:
+    coords = np.asarray(coords)
     if not np.all(np.isfinite(coords)):
         return False
     C = coords - np.mean(coords, axis=0)[None, :]
@@ -630,12 +685,12 @@ def walkers_independent(coords):
     C /= C_colmax
     C_colsum = np.sqrt(np.sum(C**2, axis=0))
     C /= C_colsum
-    return np.linalg.cond(C.astype(float)) <= 1e8
+    return bool(np.linalg.cond(C.astype(float)) <= 1e8)
 
 
 def ndarray_to_list_of_dicts(
-    x: np.ndarray, key_map: Mapping[str, Union[int, list[int]]]
-) -> list[dict[str, Union[np.number, np.ndarray]]]:
+    x: np.ndarray, key_map: Mapping[str, int | list[int]]
+) -> list[dict[str, np.number | np.ndarray]]:
     """
     A helper function to convert a ``np.ndarray`` into a list
     of dictionaries of parameters. Used when parameters are named.
@@ -651,7 +706,7 @@ def ndarray_to_list_of_dicts(
     return [{key: xi[val] for key, val in key_map.items()} for xi in x]
 
 
-def _scalar(fx):
+def _scalar(fx: Any) -> float:
     # Make sure a value is a true scalar
     # 1.0, np.float64(1.0), np.array([1.0]), np.array(1.0)
     if not np.isscalar(fx):

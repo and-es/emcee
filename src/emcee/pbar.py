@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import importlib
 import logging
+from typing import Any, Protocol
 
 __all__ = ["get_progress_bar"]
 
@@ -12,23 +15,34 @@ except ImportError:
     tqdm = None  # ty: ignore[invalid-assignment]
 
 
+class ProgressBar(Protocol):
+    """The interface of the progress bars used by the sampler"""
+
+    def __enter__(self) -> ProgressBar: ...
+
+    def __exit__(
+        self, exc_type: object, exc_value: object, traceback: object, /
+    ) -> object: ...
+
+    def update(self, n: int, /) -> object: ...
+
+
 class _NoOpPBar:
     """This class implements the progress bar interface but does nothing"""
 
-    def __init__(self):
-        pass
-
-    def __enter__(self, *args, **kwargs):
+    def __enter__(self) -> _NoOpPBar:
         return self
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args: object) -> None:
         pass
 
-    def update(self, count):
+    def update(self, count: int) -> None:
         pass
 
 
-def get_progress_bar(display, total, **kwargs):
+def get_progress_bar(
+    display: bool | str, total: int | None, **kwargs: Any
+) -> ProgressBar:
     """Get a progress bar interface with given properties
 
     If the tqdm library is not installed, this will always return a "progress

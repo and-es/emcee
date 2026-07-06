@@ -30,6 +30,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
 ]
 
 [project.urls]
@@ -45,6 +46,9 @@ dev = ["ty", "pre-commit", "coverage[toml]"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+emcee = ["py.typed"]
 
 [tool.setuptools_scm]
 version_file = "src/emcee/emcee_version.py"
@@ -113,5 +117,7 @@ exclude_lines = [
     "def __repr__",
     "@deprecated",
     'deprecation_warning\(',
-    "if tqdm is None"
+    "if tqdm is None",
+    "if TYPE_CHECKING:",
+    'class .*\bProtocol\):',
 ]

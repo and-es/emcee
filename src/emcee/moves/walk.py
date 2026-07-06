@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -18,11 +22,18 @@ class WalkMove(RedBlueMove):
 
     """
 
-    def __init__(self, s=None, **kwargs):
+    s: int | None
+
+    def __init__(self, s: int | None = None, **kwargs: Any) -> None:
         self.s = s
         super().__init__(**kwargs)
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
         s = sample
         c = np.concatenate(complement, axis=0)
         Ns, Nc = len(s), len(c)

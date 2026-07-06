@@ -1,11 +1,19 @@
+from __future__ import annotations
+
 import json
 import os
 from tempfile import NamedTemporaryFile
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .. import __version__
 from .backend import Backend
+
+if TYPE_CHECKING:
+    from numpy.typing import DTypeLike
+
+    from ..state import State
 
 __all__ = ["HDFBackend", "TempHDFBackend", "does_hdf5_support_longdouble"]
 
@@ -16,7 +24,7 @@ except ImportError:
     h5py = None  # ty: ignore[invalid-assignment]
 
 
-def does_hdf5_support_longdouble():
+def does_hdf5_support_longdouble() -> bool:
     if h5py is None:
         return False
     with NamedTemporaryFile(
@@ -38,7 +46,7 @@ def does_hdf5_support_longdouble():
     return True
 
 
-def _json_default(obj):
+def _json_default(obj: Any) -> Any:
     """Serialize the numpy types appearing in bit generator states"""
     if isinstance(obj, np.ndarray):
         return obj.tolist()
@@ -69,15 +77,22 @@ class HDFBackend(Backend):
 
     """
 
+    filename: str | os.PathLike[str]
+    name: str
+    read_only: bool
+    compression: str | int | None
+    compression_opts: Any
+    dtype_set: bool
+
     def __init__(
         self,
-        filename,
-        name="mcmc",
-        read_only=False,
-        dtype=None,
-        compression=None,
-        compression_opts=None,
-    ):
+        filename: str | os.PathLike[str],
+        name: str = "mcmc",
+        read_only: bool = False,
+        dtype: DTypeLike | None = None,
+        compression: str | int | None = None,
+        compression_opts: Any = None,
+    ) -> None:
         if h5py is None:
             raise ImportError("you must install 'h5py' to use the HDFBackend")
         self.filename = filename
@@ -93,7 +108,7 @@ class HDFBackend(Backend):
             self.dtype = dtype
 
     @property
-    def initialized(self):
+    def initialized(self) -> bool:
         if not os.path.exists(self.filename):
             return False
         try:
@@ -102,7 +117,9 @@ class HDFBackend(Backend):
         except OSError:
             return False
 
-    def open(self, mode="r"):
+    def open(self, mode: str = "r") -> h5py.File:
+        if h5py is None:
+            raise ImportError("you must install 'h5py' to use the HDFBackend")
         if self.read_only and mode != "r":
             raise RuntimeError(
                 "The backend has been loaded in read-only "
@@ -117,7 +134,7 @@ class HDFBackend(Backend):
                 self.dtype_set = True
         return f
 
-    def reset(self, nwalkers, ndim):
+    def reset(self, nwalkers: int, ndim: int) -> None:
         """Clear the state of the chain and empty the backend
 
         Args:
@@ -158,11 +175,13 @@ class HDFBackend(Backend):
                 compression_opts=self.compression_opts,
             )
 
-    def has_blobs(self):
+    def has_blobs(self) -> bool:
         with self.open() as f:
-            return f[self.name].attrs["has_blobs"]
+            return bool(f[self.name].attrs["has_blobs"])
 
-    def get_value(self, name, flat=False, thin=1, discard=0):
+    def get_value(
+        self, name: str, flat: bool = False, thin: int = 1, discard: int = 0
+    ) -> Any:
         if not self.initialized:
             raise AttributeError(
                 "You must run the sampler with "
@@ -190,23 +209,23 @@ class HDFBackend(Backend):
             return v
 
     @property
-    def shape(self):
+    def shape(self) -> tuple[int, int]:
         with self.open() as f:
             g = f[self.name]
             return g.attrs["nwalkers"], g.attrs["ndim"]
 
     @property
-    def iteration(self):
+    def iteration(self) -> int:
         with self.open() as f:
             return f[self.name].attrs["iteration"]
 
     @property
-    def accepted(self):
+    def accepted(self) -> np.ndarray:
         with self.open() as f:
             return f[self.name]["accepted"][...]
 
     @property
-    def random_state(self):
+    def random_state(self) -> Any:
         with self.open() as f:
             attrs = f[self.name].attrs
             if "random_state" in attrs:
@@ -221,7 +240,7 @@ class HDFBackend(Backend):
             ]
         return elements if len(elements) else None
 
-    def grow(self, ngrow, blobs):
+    def grow(self, ngrow: int, blobs: np.ndarray | None) -> None:
         """Expand the storage space by some number of samples
 
         Args:
@@ -261,7 +280,7 @@ class HDFBackend(Backend):
                         )
                 g.attrs["has_blobs"] = True
 
-    def save_step(self, state, accepted):
+    def save_step(self, state: State, accepted: np.ndarray) -> None:
         """Save a step to the backend
 
         Args:
@@ -295,13 +314,23 @@ class HDFBackend(Backend):
 
 
 class TempHDFBackend:
-    def __init__(self, dtype=None, compression=None, compression_opts=None):
+    dtype: DTypeLike | None
+    filename: str | None
+    compression: str | int | None
+    compression_opts: Any
+
+    def __init__(
+        self,
+        dtype: DTypeLike | None = None,
+        compression: str | int | None = None,
+        compression_opts: Any = None,
+    ) -> None:
         self.dtype = dtype
         self.filename = None
         self.compression = compression
         self.compression_opts = compression_opts
 
-    def __enter__(self):
+    def __enter__(self) -> HDFBackend:
         f = NamedTemporaryFile(
             prefix="emcee-temporary-hdf5", suffix=".hdf5", delete=False
         )
@@ -315,6 +344,11 @@ class TempHDFBackend:
             compression_opts=self.compression_opts,
         )
 
-    def __exit__(self, exception_type, exception_value, traceback):
+    def __exit__(
+        self,
+        exception_type: object,
+        exception_value: object,
+        traceback: object,
+    ) -> None:
         # ``self.filename`` is set in ``__enter__``
         os.remove(self.filename)  # ty: ignore[invalid-argument-type]

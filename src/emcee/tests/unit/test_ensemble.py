@@ -208,6 +208,7 @@ class TestNamedParameters(TestCase):
         guess = self.rng.random((n_walkers, len(self.names)))
         n_steps = 50
         results = sampler.run_mcmc(guess, n_steps)
+        assert results is not None
         assert results.coords.shape == (n_walkers, len(self.names))
         chain = sampler.get_chain()
         assert chain.shape == (n_steps, n_walkers, len(self.names))

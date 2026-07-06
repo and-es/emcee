@@ -1,6 +1,14 @@
+from __future__ import annotations
+
 from copy import deepcopy
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Mapping, Sequence
+
+    from numpy.typing import ArrayLike
 
 __all__ = ["State"]
 
@@ -27,18 +35,31 @@ class State:
             emcee).
     """
 
+    coords: np.ndarray
+    log_prob: np.ndarray | None
+    blobs: np.ndarray | None
+    random_state: Mapping[str, Any] | Sequence[Any] | None
+
     __slots__ = "coords", "log_prob", "blobs", "random_state"
 
     def __init__(
-        self, coords, log_prob=None, blobs=None, random_state=None, copy=False
-    ):
+        self,
+        coords: State | ArrayLike,
+        log_prob: np.ndarray | None = None,
+        blobs: np.ndarray | None = None,
+        random_state: Mapping[str, Any] | Sequence[Any] | None = None,
+        copy: bool = False,
+    ) -> None:
         dc = deepcopy if copy else lambda x: x
 
         if hasattr(coords, "coords"):
-            self.coords = dc(coords.coords)
-            self.log_prob = dc(coords.log_prob)
-            self.blobs = dc(coords.blobs)
-            self.random_state = dc(coords.random_state)
+            # Also accept duck-typed state objects, e.g. a ``State``
+            # whose class identity was lost to a module reload
+            other = cast("State", coords)
+            self.coords = dc(other.coords)
+            self.log_prob = dc(other.log_prob)
+            self.blobs = dc(other.blobs)
+            self.random_state = dc(other.random_state)
             return
 
         self.coords = dc(np.atleast_2d(coords))
@@ -46,25 +67,25 @@ class State:
         self.blobs = dc(blobs)
         self.random_state = dc(random_state)
 
-    def __len__(self):
+    def __len__(self) -> int:
         if self.blobs is None:
             return 3
         return 4
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"State({self.coords}, log_prob={self.log_prob}, "
             f"blobs={self.blobs}, random_state={self.random_state})"
         )
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         if self.blobs is None:
             return iter((self.coords, self.log_prob, self.random_state))
         return iter(
             (self.coords, self.log_prob, self.random_state, self.blobs)
         )
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Any:
         if index < 0:
             return self[len(self) + index]
         if index == 0:

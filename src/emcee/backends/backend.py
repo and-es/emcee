@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 import numpy as np
 
 from .. import autocorr
 from ..state import State
+
+if TYPE_CHECKING:
+    from numpy.typing import DTypeLike
 
 __all__ = ["Backend"]
 
@@ -9,13 +16,29 @@ __all__ = ["Backend"]
 class Backend:
     """A simple default backend that stores the chain in memory"""
 
-    def __init__(self, dtype=None):
+    initialized: bool
+    # Kept as ``Any``: scalar types, dtype instances, and h5py dataset
+    # dtypes are all assigned here without normalization
+    dtype: Any
+    nwalkers: int
+    ndim: int
+    iteration: int
+    accepted: np.ndarray
+    chain: np.ndarray
+    log_prob: np.ndarray
+    blobs: np.ndarray | None
+    # A bit generator state dict, a legacy per-element state list written
+    # by an older version of emcee, or ``None``; kept as ``Any`` because
+    # the stored shape depends on the file version
+    random_state: Any
+
+    def __init__(self, dtype: DTypeLike | None = None) -> None:
         self.initialized = False
         if dtype is None:
             dtype = np.float64
         self.dtype = dtype
 
-    def reset(self, nwalkers, ndim):
+    def reset(self, nwalkers: int, ndim: int) -> None:
         """Clear the state of the chain and empty the backend
 
         Args:
@@ -33,11 +56,13 @@ class Backend:
         self.random_state = None
         self.initialized = True
 
-    def has_blobs(self):
+    def has_blobs(self) -> bool:
         """Returns ``True`` if the model includes blobs"""
         return self.blobs is not None
 
-    def get_value(self, name, flat=False, thin=1, discard=0):
+    def get_value(
+        self, name: str, flat: bool = False, thin: int = 1, discard: int = 0
+    ) -> Any:
         if self.iteration <= 0:
             raise AttributeError(
                 "you must run the sampler with "
@@ -55,7 +80,7 @@ class Backend:
             return v.reshape(s)
         return v
 
-    def get_chain(self, **kwargs):
+    def get_chain(self, **kwargs: Any) -> np.ndarray:
         """Get the stored chain of MCMC samples
 
         Args:
@@ -72,7 +97,7 @@ class Backend:
         """
         return self.get_value("chain", **kwargs)
 
-    def get_blobs(self, **kwargs):
+    def get_blobs(self, **kwargs: Any) -> np.ndarray | None:
         """Get the chain of blobs for each sample in the chain
 
         Args:
@@ -89,7 +114,7 @@ class Backend:
         """
         return self.get_value("blobs", **kwargs)
 
-    def get_log_prob(self, **kwargs):
+    def get_log_prob(self, **kwargs: Any) -> np.ndarray:
         """Get the chain of log probabilities evaluated at the MCMC samples
 
         Args:
@@ -106,7 +131,7 @@ class Backend:
         """
         return self.get_value("log_prob", **kwargs)
 
-    def get_last_sample(self):
+    def get_last_sample(self) -> State:
         """Access the most recent sample in the chain"""
         if (not self.initialized) or self.iteration <= 0:
             raise AttributeError(
@@ -125,7 +150,9 @@ class Backend:
             random_state=self.random_state,
         )
 
-    def get_autocorr_time(self, discard=0, thin=1, **kwargs):
+    def get_autocorr_time(
+        self, discard: int = 0, thin: int = 1, **kwargs: Any
+    ) -> np.ndarray:
         """Compute an estimate of the autocorrelation time for each parameter
 
         Args:
@@ -148,18 +175,18 @@ class Backend:
         return thin * autocorr.integrated_time(x, **kwargs)
 
     @property
-    def shape(self):
+    def shape(self) -> tuple[int, int]:
         """The dimensions of the ensemble ``(nwalkers, ndim)``"""
         return self.nwalkers, self.ndim
 
-    def _check_blobs(self, blobs):
+    def _check_blobs(self, blobs: np.ndarray | None) -> None:
         has_blobs = self.has_blobs()
         if has_blobs and blobs is None:
             raise ValueError("inconsistent use of blobs")
         if self.iteration > 0 and blobs is not None and not has_blobs:
             raise ValueError("inconsistent use of blobs")
 
-    def grow(self, ngrow, blobs):
+    def grow(self, ngrow: int, blobs: np.ndarray | None) -> None:
         """Expand the storage space by some number of samples
 
         Args:
@@ -182,7 +209,7 @@ class Backend:
             else:
                 self.blobs = np.concatenate((self.blobs, a), axis=0)
 
-    def _check(self, state, accepted):
+    def _check(self, state: State, accepted: np.ndarray) -> None:
         self._check_blobs(state.blobs)
         nwalkers, ndim = self.shape
         has_blobs = self.has_blobs()
@@ -190,7 +217,7 @@ class Backend:
             raise ValueError(
                 f"invalid coordinate dimensions; expected {(nwalkers, ndim)}"
             )
-        if state.log_prob.shape != (nwalkers,):
+        if state.log_prob is None or state.log_prob.shape != (nwalkers,):
             raise ValueError(
                 f"invalid log probability size; expected {nwalkers}"
             )
@@ -201,7 +228,7 @@ class Backend:
         if accepted.shape != (nwalkers,):
             raise ValueError(f"invalid acceptance size; expected {nwalkers}")
 
-    def save_step(self, state, accepted):
+    def save_step(self, state: State, accepted: np.ndarray) -> None:
         """Save a step to the backend
 
         Args:
@@ -224,8 +251,13 @@ class Backend:
         self.random_state = state.random_state
         self.iteration += 1
 
-    def __enter__(self):
+    def __enter__(self) -> Backend:
         return self
 
-    def __exit__(self, exception_type, exception_value, traceback):
+    def __exit__(
+        self,
+        exception_type: object,
+        exception_value: object,
+        traceback: object,
+    ) -> None:
         pass

@@ -1,13 +1,44 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..model import Model
+    from ..state import State
 
 __all__ = ["Move"]
 
 
 class Move:
-    def tune(self, state, accepted):
+    def propose(self, model: Model, state: State) -> tuple[State, np.ndarray]:
+        """Use the move to generate a proposal and compute the acceptance
+
+        Args:
+            model (Model): The model functions and random number generator
+                used to compute the proposal.
+            state (State): The current state of the ensemble.
+
+        Returns:
+            A tuple of the updated :class:`State` and a vector of booleans
+            indicating which walkers were accepted.
+
+        """
+        raise NotImplementedError(
+            "The proposal must be implemented by subclasses"
+        )
+
+    def tune(self, state: State, accepted: np.ndarray) -> None:
         pass
 
-    def update(self, old_state, new_state, accepted, subset=None):
+    def update(
+        self,
+        old_state: State,
+        new_state: State,
+        accepted: np.ndarray,
+        subset: np.ndarray | None = None,
+    ) -> State:
         """Update a given subset of the ensemble with an accepted proposal
 
         Args:
@@ -26,6 +57,12 @@ class Move:
             ``old_state``).
 
         """
+        if old_state.log_prob is None or new_state.log_prob is None:
+            raise ValueError(
+                "states with computed log probabilities are required "
+                "to update the ensemble"
+            )
+
         if subset is None:
             subset = np.ones(len(old_state.coords), dtype=bool)
         m1 = subset & accepted

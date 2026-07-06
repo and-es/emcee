@@ -2,12 +2,15 @@ import numpy as np
 import pytest
 
 from emcee import moves
+from emcee.model import Model
 from emcee.moves.de import _get_nondiagonal_pairs
 from emcee.moves.move import Move
 from emcee.state import State
 
 __all__ = [
     "test_update_requires_matching_blobs",
+    "test_update_requires_log_prob",
+    "test_propose_requires_log_prob",
     "test_gaussian_invalid_cov_shape",
     "test_gaussian_invalid_factor",
     "test_nondiagonal_pairs_cache_is_read_only",
@@ -20,6 +23,33 @@ def test_update_requires_matching_blobs():
     accepted = np.ones(4, dtype=bool)
     with pytest.raises(ValueError, match="current list of blobs"):
         Move().update(old, new, accepted)
+
+
+def test_update_requires_log_prob():
+    old = State(np.zeros((4, 2)))
+    new = State(np.ones((4, 2)), log_prob=np.ones(4))
+    accepted = np.ones(4, dtype=bool)
+    with pytest.raises(ValueError, match="computed log probabilities"):
+        Move().update(old, new, accepted)
+
+
+@pytest.mark.parametrize(
+    "move",
+    [
+        moves.StretchMove(),
+        moves.MHMove(lambda coords, rng: (coords, np.zeros(len(coords)))),
+    ],
+)
+def test_propose_requires_log_prob(move):
+    model = Model(
+        None,
+        lambda x: (np.zeros(len(x)), None),
+        map,
+        np.random.default_rng(0),
+    )
+    state = State(np.zeros((10, 2)))
+    with pytest.raises(ValueError, match="computed log probabilities"):
+        move.propose(model, state)
 
 
 def test_gaussian_invalid_cov_shape():

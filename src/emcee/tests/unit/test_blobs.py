@@ -66,9 +66,11 @@ def test_blob_shape(backend, blob_spec):
         elif blob_shape > 0:
             shape += [blob_shape]
 
-        assert sampler.get_blobs().shape == tuple(shape)
+        blobs = sampler.get_blobs()
+        assert blobs is not None
+        assert blobs.shape == tuple(shape)
         if not hdf_able:
-            assert sampler.get_blobs().dtype == np.dtype("object")
+            assert blobs.dtype == np.dtype("object")
 
 
 class VariableLogProb:

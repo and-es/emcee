@@ -1,7 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from ..state import State
 from .move import Move
+
+if TYPE_CHECKING:
+    from ..model import Model
 
 __all__ = ["RedBlueMove"]
 
@@ -32,17 +39,29 @@ class RedBlueMove(Move):
 
     """
 
+    nsplits: int
+    live_dangerously: bool
+    randomize_split: bool
+
     def __init__(
-        self, nsplits=2, randomize_split=True, live_dangerously=False
-    ):
+        self,
+        nsplits: int = 2,
+        randomize_split: bool = True,
+        live_dangerously: bool = False,
+    ) -> None:
         self.nsplits = int(nsplits)
         self.live_dangerously = live_dangerously
         self.randomize_split = randomize_split
 
-    def setup(self, coords):
+    def setup(self, coords: np.ndarray) -> None:
         pass
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate a proposal for a sub-ensemble
 
         Args:
@@ -60,7 +79,7 @@ class RedBlueMove(Move):
             "The proposal must be implemented by subclasses"
         )
 
-    def propose(self, model, state):
+    def propose(self, model: Model, state: State) -> tuple[State, np.ndarray]:
         """Use the move to generate a proposal and compute the acceptance
 
         Args:
@@ -80,6 +99,11 @@ class RedBlueMove(Move):
                 "It is unadvisable to use a red-blue move "
                 "with fewer walkers than twice the number of "
                 "dimensions."
+            )
+        if state.log_prob is None:
+            raise ValueError(
+                "a state with computed log probabilities is required "
+                "to generate a proposal"
             )
 
         # Run any move-specific setup.

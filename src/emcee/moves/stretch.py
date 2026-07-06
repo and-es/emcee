@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 from .red_blue import RedBlueMove
@@ -18,11 +22,18 @@ class StretchMove(RedBlueMove):
 
     """
 
-    def __init__(self, a=2.0, **kwargs):
+    a: float
+
+    def __init__(self, a: float = 2.0, **kwargs: Any) -> None:
         self.a = a
         super().__init__(**kwargs)
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
         s = sample
         c = np.concatenate(complement, axis=0)
         Ns, Nc = len(s), len(c)

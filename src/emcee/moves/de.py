@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from functools import lru_cache
+from typing import Any
 
 import numpy as np
 
@@ -24,19 +27,34 @@ class DEMove(RedBlueMove):
 
     """
 
-    def __init__(self, sigma=1.0e-5, gamma0=None, **kwargs):
+    sigma: float
+    gamma0: float | None
+    g0: float
+
+    def __init__(
+        self,
+        sigma: float = 1.0e-5,
+        gamma0: float | None = None,
+        **kwargs: Any,
+    ) -> None:
         self.sigma = sigma
         self.gamma0 = gamma0
         super().__init__(**kwargs)
 
-    def setup(self, coords):
-        self.g0 = self.gamma0
-        if self.g0 is None:
+    def setup(self, coords: np.ndarray) -> None:
+        if self.gamma0 is None:
             # Pure MAGIC:
             ndim = coords.shape[1]
             self.g0 = 2.38 / np.sqrt(2 * ndim)
+        else:
+            self.g0 = self.gamma0
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
         s = sample
         c = np.concatenate(complement, axis=0)
         ns, ndim = s.shape

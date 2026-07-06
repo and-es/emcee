@@ -1,7 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from ..state import State
 from .move import Move
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from ..model import Model
 
 __all__ = ["MHMove"]
 
@@ -26,11 +35,22 @@ class MHMove(Move):
 
     """
 
-    def __init__(self, proposal_function, ndim=None):
+    ndim: int | None
+    get_proposal: Callable[
+        [np.ndarray, np.random.Generator], tuple[np.ndarray, np.ndarray]
+    ]
+
+    def __init__(
+        self,
+        proposal_function: Callable[
+            [np.ndarray, np.random.Generator], tuple[np.ndarray, np.ndarray]
+        ],
+        ndim: int | None = None,
+    ) -> None:
         self.ndim = ndim
         self.get_proposal = proposal_function
 
-    def propose(self, model, state):
+    def propose(self, model: Model, state: State) -> tuple[State, np.ndarray]:
         """Use the move to generate a proposal and compute the acceptance
 
         Args:
@@ -47,6 +67,11 @@ class MHMove(Move):
         nwalkers, ndim = state.coords.shape
         if self.ndim is not None and self.ndim != ndim:
             raise ValueError("Dimension mismatch in proposal")
+        if state.log_prob is None:
+            raise ValueError(
+                "a state with computed log probabilities is required "
+                "to generate a proposal"
+            )
 
         # Get the move-specific proposal.
         q, factors = self.get_proposal(state.coords, model.random)
