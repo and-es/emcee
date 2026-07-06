@@ -72,15 +72,17 @@ class RedBlueMove(Move):
 
         # Split the ensemble in half and iterate over these two halves.
         accepted = np.zeros(nwalkers, dtype=bool)
-        all_inds = np.arange(nwalkers)
-        inds = all_inds % self.nsplits
+        inds = np.arange(nwalkers) % self.nsplits
         if self.randomize_split:
             model.random.shuffle(inds)
+        # The masks are loop-invariant; the coordinate sets are not, because
+        # each split updates ``state.coords`` in place.
+        masks = [inds == j for j in range(self.nsplits)]
         for split in range(self.nsplits):
-            S1 = inds == split
+            S1 = masks[split]
 
             # Get the two halves of the ensemble.
-            sets = [state.coords[inds == j] for j in range(self.nsplits)]
+            sets = [state.coords[m] for m in masks]
             s = sets[split]
             c = sets[:split] + sets[split + 1 :]
 
@@ -90,11 +92,9 @@ class RedBlueMove(Move):
             # Compute the lnprobs of the proposed position.
             new_log_probs, new_blobs = model.compute_log_prob_fn(q)
 
-            # Loop over the walkers and update them accordingly.
-            for j, f, nlp in zip(all_inds[S1], factors, new_log_probs):
-                lnpdiff = f + nlp - state.log_prob[j]
-                if lnpdiff > np.log(model.random.random()):
-                    accepted[j] = True
+            # Decide the acceptance for each walker in the split.
+            lnpdiff = factors + new_log_probs - state.log_prob[S1]
+            accepted[S1] = lnpdiff > np.log(model.random.random(len(lnpdiff)))
 
             new_state = State(q, log_prob=new_log_probs, blobs=new_blobs)
             state = self.update(state, new_state, accepted, S1)

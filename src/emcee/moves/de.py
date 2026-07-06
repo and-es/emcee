@@ -79,4 +79,8 @@ def _get_nondiagonal_pairs(n: int) -> np.ndarray:
         [np.concatenate([rows, cols]), np.concatenate([cols, rows])]
     )
 
+    # The array is cached and shared between callers, so make it read-only
+    # to prevent accidental in-place modification from polluting the cache.
+    pairs.setflags(write=False)
+
     return pairs

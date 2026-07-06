@@ -34,7 +34,7 @@ class DESnookerMove(RedBlueMove):
         q = np.empty_like(s)
         metropolis = np.empty(Ns, dtype=np.float64)
         for i in range(Ns):
-            w = np.array([c[j][random.integers(Nc[j])] for j in range(3)])
+            w = np.array([c[j][random.integers(Nc[j])] for j in range(len(c))])
             random.shuffle(w)
             z, z1, z2 = w
             delta = s[i] - z
