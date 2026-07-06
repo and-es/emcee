@@ -477,22 +477,55 @@ def test_random_state_set_mid_run(nwalkers=32, ndim=3):
     sampler1 = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=100)
     gen = sampler1.sample(coords, iterations=2, store=False)
     mid = next(gen)
-    # Copy the midpoint: the moves update the yielded State in place
-    mid_coords = np.copy(mid.coords)
-    mid_log_prob = np.copy(mid.log_prob)
     sampler1.random_state = mt_state
     final1 = next(gen)
 
     # A fresh sampler continuing from the same midpoint with the same
-    # state must produce the same step.
+    # state must produce the same step. The yielded midpoint is a
+    # snapshot, so it is still valid after the second step above.
     sampler2 = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=200)
     sampler2.random_state = mt_state
     final2 = sampler2.run_mcmc(
-        State(mid_coords, log_prob=mid_log_prob), 1, store=False
+        State(mid.coords, log_prob=mid.log_prob), 1, store=False
     )
 
     assert final2 is not None
     assert np.allclose(final1.coords, final2.coords)
+
+
+def test_yielded_states_are_snapshots(nwalkers=32, ndim=3):
+    # Each yielded State has its own arrays and is not mutated by later
+    # steps, so collecting them tracks the stored chain
+    coords = np.random.default_rng(456).standard_normal((nwalkers, ndim))
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=9)
+
+    states = list(sampler.sample(coords, iterations=3))
+    assert len({id(s) for s in states}) == 3
+    assert np.array_equal(
+        np.stack([s.coords for s in states]), sampler.get_chain()
+    )
+    assert np.array_equal(
+        np.stack([s.log_prob for s in states]), sampler.get_log_prob()
+    )
+
+    # With thinning, the yields line up with the stored steps
+    sampler.reset()
+    states = list(sampler.sample(coords, iterations=3, thin_by=2))
+    assert len({id(s) for s in states}) == 3
+    assert np.array_equal(
+        np.stack([s.coords for s in states]), sampler.get_chain()
+    )
+
+
+def test_sample_copy_false(nwalkers=32, ndim=3):
+    # copy=False opts back into the historical behavior: the same State
+    # object is updated in place and yielded every time
+    coords = np.random.default_rng(456).standard_normal((nwalkers, ndim))
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=9)
+    states = list(
+        sampler.sample(coords, iterations=3, store=False, copy=False)
+    )
+    assert all(s is states[0] for s in states)
 
 
 def test_rng_reproducibility(nwalkers=32, ndim=3):

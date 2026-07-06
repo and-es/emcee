@@ -316,6 +316,7 @@ class EnsembleSampler:
         skip_initial_state_check: bool = False,
         thin_by: int = 1,
         store: bool = True,
+        copy: bool = True,
         progress: bool | str = False,
         progress_kwargs: dict[str, Any] | None = None,
     ) -> Generator[State, None, None]:
@@ -339,6 +340,13 @@ class EnsembleSampler:
                 chain. If you are using another method to store the samples to
                 a file or if you don't need to analyze the samples after the
                 fact (for burn-in for example) set ``store`` to ``False``.
+            copy (Optional[bool]): If ``True`` (default), every yielded
+                :class:`State` is an independent snapshot with its own
+                arrays, so it stays valid after the sampler moves on and
+                can be kept without ``copy.deepcopy``. Set this to
+                ``False`` to update and yield the same ``State`` object in
+                place every time, avoiding one array copy per yielded step
+                when the states are not kept. (default: ``True``)
             progress (Optional[bool or str]): If ``True``, a progress bar will
                 be shown as the sampler progresses. If a string, will select a
                 specific ``tqdm`` progress bar - most notable is
@@ -353,7 +361,8 @@ class EnsembleSampler:
 
 
         Every ``thin_by`` steps, this generator yields the
-        :class:`State` of the ensemble.
+        :class:`State` of the ensemble. Unless ``copy=False``, each yielded
+        state is a snapshot that is not mutated by later steps.
 
         """
         if store and iterations is None:
@@ -411,8 +420,28 @@ class EnsembleSampler:
         total = None if iterations is None else iterations * yield_step
         with get_progress_bar(progress, total, **progress_kwargs) as pbar:
             i = 0
+            yielded_state = None
             for _ in count() if iterations is None else range(iterations):
                 for _ in range(yield_step):
+                    # Don't mutate a State that has been handed to the
+                    # user: moves update the ensemble state in place, so
+                    # continue from a fresh copy with independent arrays
+                    if copy and state is yielded_state:
+                        state = State(
+                            state.coords.copy(),
+                            log_prob=(
+                                None
+                                if state.log_prob is None
+                                else state.log_prob.copy()
+                            ),
+                            blobs=(
+                                None
+                                if state.blobs is None
+                                else state.blobs.copy()
+                            ),
+                            random_state=state.random_state,
+                        )
+
                     # Rebuild the model wrapper every step so that a
                     # generator swapped in through the ``random_state``
                     # setter mid-run is picked up by the moves
@@ -445,6 +474,7 @@ class EnsembleSampler:
                 # Yield the result as an iterator so that the user can do all
                 # sorts of fun stuff with the results so far.
                 yield state
+                yielded_state = state
 
     def run_mcmc(
         self,
@@ -461,7 +491,9 @@ class EnsembleSampler:
                 last time it executed.
             nsteps: The number of steps to run.
 
-        Other parameters are directly passed to :func:`sample`.
+        Other parameters are directly passed to :func:`sample`, except that
+        ``copy`` defaults to ``False`` here: the intermediate states are
+        not exposed to the caller, so the snapshot copies are not needed.
 
         This method returns the most recent result from :func:`sample`.
 
@@ -475,6 +507,9 @@ class EnsembleSampler:
             initial_state = self._previous_state
 
         results = None
+        # Only the final state is exposed to the caller, so the per-yield
+        # snapshot copies made by ``sample`` are not needed here
+        kwargs.setdefault("copy", False)
         # The loop variable is read after the loop: only the final state of
         # the chain is kept.
         for results in self.sample(  # noqa: B007
