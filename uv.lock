@@ -183,7 +183,7 @@ requires-dist = [
     { name = "coverage", extras = ["toml"], marker = "extra == 'tests'" },
     { name = "h5py", marker = "extra == 'extras'" },
     { name = "ipywidgets", marker = "extra == 'extras'" },
-    { name = "numpy", specifier = ">=1.17" },
+    { name = "numpy", specifier = ">=2.0" },
     { name = "pytest", marker = "extra == 'tests'" },
     { name = "pytest-cov", marker = "extra == 'tests'" },
     { name = "scipy", marker = "extra == 'extras'" },

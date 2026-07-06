@@ -1,5 +1,3 @@
-import warnings
-
 import numpy as np
 import pytest
 
@@ -53,12 +51,7 @@ def test_blob_shape(backend, blob_spec):
         sampler = EnsembleSampler(nwalkers, ndim, model, backend=be)
         nsteps = 10
 
-        if ragged:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                sampler.run_mcmc(coords, nsteps)
-        else:
-            sampler.run_mcmc(coords, nsteps)
+        sampler.run_mcmc(coords, nsteps)
 
         shape = [nsteps, nwalkers]
         if isinstance(blob_shape, tuple):

@@ -64,6 +64,28 @@ jobs:
           COVERALLS_PARALLEL: true
           COVERALLS_FLAG_NAME: ${{ matrix.python-version }}-${{ matrix.os }}
 
+  lower-bound:
+    # Check that the declared minimum numpy still works. The extras are
+    # left unpinned; only numpy is forced down to the floor.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.11"
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+      - name: Install dependencies with the minimum supported numpy
+        run: |
+          uv sync --extra tests --extra extras
+          uv pip install "numpy==2.0.*"
+      - name: Run tests
+        run: uv run --no-sync pytest -v src/emcee/tests
+
   coverage:
     needs: tests
     runs-on: ubuntu-latest
@@ -133,7 +155,7 @@ jobs:
           path: dist/*
 
   upload_pypi:
-    needs: [tests, lint, types, build]
+    needs: [tests, lower-bound, lint, types, build]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:

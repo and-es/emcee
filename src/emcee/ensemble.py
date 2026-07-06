@@ -12,11 +12,7 @@ from .model import Model
 from .moves import Move, StretchMove
 from .pbar import get_progress_bar
 from .state import State
-from .utils import (
-    deprecation_warning,
-    ensure_rng,
-    stored_state_to_generator,
-)
+from .utils import ensure_rng, stored_state_to_generator
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Generator, Sequence
@@ -24,15 +20,6 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, DTypeLike
 
 __all__ = ["EnsembleSampler", "walkers_independent"]
-
-try:
-    # Try to import from numpy.exceptions (available in NumPy 1.25 and later)
-    from numpy.exceptions import VisibleDeprecationWarning
-except ImportError:
-    # Fallback to the top-level numpy import (for older versions)
-    from numpy import (
-        VisibleDeprecationWarning,  # ty: ignore[unresolved-import]
-    )
 
 
 class EnsembleSampler:
@@ -568,23 +555,10 @@ class EnsembleSampler:
                 dt = self.blobs_dtype
             else:
                 try:
-                    with warnings.catch_warnings(record=True):
-                        warnings.simplefilter(
-                            "error", VisibleDeprecationWarning
-                        )
-                        try:
-                            dt = np.atleast_1d(blob[0]).dtype
-                        except Warning:
-                            deprecation_warning(
-                                "You have provided blobs that are not all the "
-                                "same shape or size. This means they must be "
-                                "placed in an object array. Numpy has "
-                                "deprecated this automatic detection, so "
-                                "please specify "
-                                "blobs_dtype=np.dtype('object')"
-                            )
-                            dt = np.dtype("object")
+                    dt = np.atleast_1d(blob[0]).dtype
                 except ValueError:
+                    # Ragged blobs can't be stacked into a regular array,
+                    # so they have to be stored with an object dtype.
                     dt = np.dtype("object")
                 if dt.kind in "US":
                     # Strings need to be object arrays or we risk truncation
