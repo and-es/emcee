@@ -1,8 +1,9 @@
-sphinx-book-theme
-myst-nb
-matplotlib
-scipy
-h5py
-celerite
-corner
-ipython
+# Notebooks are not executed at build time (nb_execution_mode = "off" in
+# conf.py), so only the packages needed by Sphinx itself and by autodoc
+# imports of emcee (scipy for KDEMove, h5py for HDFBackend) are listed.
+sphinx==9.1.0
+sphinx-book-theme==1.2.0
+myst-nb==1.4.0
+ipython==9.15.0
+scipy==1.18.0
+h5py==3.16.0
