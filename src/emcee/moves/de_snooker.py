@@ -51,8 +51,15 @@ class DESnookerMove(RedBlueMove):
         z, z1, z2 = w[:, 0], w[:, 1], w[:, 2]
         delta = s - z
         norm = np.linalg.norm(delta, axis=1)
+        # A walker that coincides with its picked ``z`` has no snooker
+        # direction to move along; keep it in place and force rejection
+        # instead of dividing by zero.
+        degenerate = norm == 0
+        norm = np.where(degenerate, 1.0, norm)
         u = delta / norm[:, None]
         proj = np.einsum("nd,nd->n", u, z1 - z2)
         q = s + u * (self.gammas * proj)[:, None]
-        metropolis = np.log(np.linalg.norm(q - z, axis=1)) - np.log(norm)
-        return q, (ndim - 1.0) * metropolis
+        qz_norm = np.where(degenerate, 1.0, np.linalg.norm(q - z, axis=1))
+        factors = (ndim - 1.0) * (np.log(qz_norm) - np.log(norm))
+        factors[degenerate] = -np.inf
+        return q, factors

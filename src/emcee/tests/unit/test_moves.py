@@ -79,6 +79,19 @@ def test_walk_invalid_s(s):
         moves.WalkMove(s=s).get_proposal(sample, complement, rng)
 
 
+@pytest.mark.filterwarnings("error")
+def test_de_snooker_degenerate_walker():
+    # A walker that coincides with its picked complementary walker has
+    # no snooker direction; it must stay in place with a forced
+    # rejection instead of dividing by zero into a NaN proposal.
+    rng = np.random.default_rng(0)
+    sample = np.zeros((3, 2))
+    complement = [np.zeros((3, 2)) for _ in range(3)]
+    q, factors = moves.DESnookerMove().get_proposal(sample, complement, rng)
+    assert np.array_equal(q, sample)
+    assert np.all(factors == -np.inf)
+
+
 def test_nondiagonal_pairs_cache_is_read_only():
     # The result is cached and shared, so mutating it must fail instead of
     # silently polluting the cache for subsequent callers.
