@@ -39,18 +39,20 @@ class DESnookerMove(RedBlueMove):
         random: np.random.Generator,
     ) -> tuple[np.ndarray, np.ndarray]:
         s, c = sample, complement
-        Ns = len(s)
-        Nc = list(map(len, c))
-        ndim = s.shape[1]
-        q = np.empty_like(s)
-        metropolis = np.empty(Ns, dtype=np.float64)
-        for i in range(Ns):
-            w = np.array([c[j][random.integers(Nc[j])] for j in range(len(c))])
-            random.shuffle(w)
-            z, z1, z2 = w
-            delta = s[i] - z
-            norm = np.linalg.norm(delta)
-            u = delta / norm
-            q[i] = s[i] + u * self.gammas * (np.dot(u, z1) - np.dot(u, z2))
-            metropolis[i] = np.log(np.linalg.norm(q[i] - z)) - np.log(norm)
+        Ns, ndim = s.shape
+        # Pick one walker from each complementary sub-ensemble, then
+        # shuffle the picks within each row with an independent random
+        # permutation per row (via argsort of uniform draws).
+        w = np.stack(
+            [cj[random.integers(len(cj), size=Ns)] for cj in c], axis=1
+        )
+        perm = np.argsort(random.random((Ns, len(c))), axis=1)
+        w = np.take_along_axis(w, perm[:, :, None], axis=1)
+        z, z1, z2 = w[:, 0], w[:, 1], w[:, 2]
+        delta = s - z
+        norm = np.linalg.norm(delta, axis=1)
+        u = delta / norm[:, None]
+        proj = np.einsum("nd,nd->n", u, z1 - z2)
+        q = s + u * (self.gammas * proj)[:, None]
+        metropolis = np.log(np.linalg.norm(q - z, axis=1)) - np.log(norm)
         return q, (ndim - 1.0) * metropolis
