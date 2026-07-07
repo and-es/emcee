@@ -86,7 +86,10 @@ class DEMove(RedBlueMove):
         return q, np.zeros(ns, dtype=np.float64)
 
 
-@lru_cache(maxsize=1)
+# With an odd number of walkers the two complement sizes differ by one
+# and alternate within every propose call, so the cache must hold both
+# to avoid recomputing the O(n^2) pair table twice per step.
+@lru_cache(maxsize=2)
 def _get_nondiagonal_pairs(n: int) -> np.ndarray:
     """Get the indices of a square matrix of size n, excluding the
     diagonal."""
