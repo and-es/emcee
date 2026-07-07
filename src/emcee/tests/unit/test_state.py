@@ -44,6 +44,44 @@ def test_overwrite(seed=1234):
     assert np.allclose(init, p0)
 
 
+def test_copy_semantics(seed=1234):
+    rng = np.random.default_rng(seed)
+    coords = rng.standard_normal((16, 3))
+    log_prob = rng.standard_normal(len(coords))
+    blobs = rng.standard_normal(len(coords))
+    rstate = rng.bit_generator.state
+
+    orig = State(coords, log_prob, blobs, rstate)
+
+    copied = State(orig, copy=True)
+    assert copied.coords is not coords
+    assert copied.log_prob is not log_prob
+    assert copied.blobs is not blobs
+    coords[:] = 0.0
+    log_prob[:] = 0.0
+    blobs[:] = 0.0
+    assert not np.allclose(copied.coords, coords)
+    assert not np.allclose(copied.log_prob, log_prob)
+    assert not np.allclose(copied.blobs, blobs)
+
+    # The random_state dict must be independent down to the nested level
+    copied_rstate = copied.random_state
+    check_rstate(copied_rstate, rstate)
+    assert isinstance(copied_rstate, dict)
+    rstate["state"]["state"] += 1
+    assert (
+        copied_rstate["state"]["state"]  # ty: ignore[invalid-argument-type]
+        != rstate["state"]["state"]
+    )
+
+    # The default (copy=False) shares the arrays
+    shared = State(orig)
+    assert shared.coords is orig.coords
+    assert shared.log_prob is orig.log_prob
+    assert shared.blobs is orig.blobs
+    assert shared.random_state is orig.random_state
+
+
 def test_indexing(seed=1234):
     rng = np.random.default_rng(seed)
     coords = rng.standard_normal((16, 3))

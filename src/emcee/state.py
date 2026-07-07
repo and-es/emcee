@@ -13,6 +13,14 @@ if TYPE_CHECKING:
 __all__ = ["State"]
 
 
+def _copy_value(x: Any) -> Any:
+    # ndarray.copy is much faster than deepcopy for arrays; anything
+    # else (e.g. the random_state dict) still needs a real deep copy
+    if isinstance(x, np.ndarray):
+        return x.copy()
+    return deepcopy(x)
+
+
 class State:
     """The state of the ensemble during an MCMC run
 
@@ -50,7 +58,7 @@ class State:
         random_state: Mapping[str, Any] | Sequence[Any] | None = None,
         copy: bool = False,
     ) -> None:
-        dc = deepcopy if copy else lambda x: x
+        dc = _copy_value if copy else lambda x: x
 
         if hasattr(coords, "coords"):
             # Also accept duck-typed state objects, e.g. a ``State``
