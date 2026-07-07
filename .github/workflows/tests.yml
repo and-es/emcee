@@ -133,7 +133,9 @@ jobs:
           enable-cache: true
           cache-suffix: ${{ github.job }}
       - name: Install dependencies
-        run: uv sync --all-extras
+        # Not --all-extras: type checking needs the runtime and test
+        # dependencies but not the Sphinx toolchain from the docs extra
+        run: uv sync --extra tests --extra extras
       - name: Type-check the code
         run: uv run --no-sync ty check
 
