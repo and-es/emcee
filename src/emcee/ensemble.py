@@ -82,6 +82,7 @@ class EnsembleSampler:
 
     _moves: Sequence[Move]
     _weights: np.ndarray
+    _move_cdf: np.ndarray
     pool: Any
     vectorize: bool
     blobs_dtype: DTypeLike | None
@@ -156,6 +157,13 @@ class EnsembleSampler:
         if not np.isfinite(total_weight):
             raise ValueError("move weights must have a finite sum")
         self._weights /= total_weight
+        # ``Generator.choice(n, p=w)`` draws a single uniform and inverts
+        # the CDF with ``searchsorted``; precomputing the CDF (normalized
+        # the same way ``choice`` does internally) lets the sampling loop
+        # reproduce the exact same draw without the per-step validation
+        # overhead of ``choice``
+        self._move_cdf = np.cumsum(self._weights)
+        self._move_cdf /= self._move_cdf[-1]
 
         if vectorize and pool is not None:
             warnings.warn(
@@ -479,9 +487,15 @@ class EnsembleSampler:
                         self._random,
                     )
 
-                    # Choose a random move
+                    # Choose a random move; bit-for-bit equivalent to
+                    # ``self._random.choice(len(self._moves),
+                    # p=self._weights)``
                     move = self._moves[
-                        self._random.choice(len(self._moves), p=self._weights)
+                        int(
+                            self._move_cdf.searchsorted(
+                                self._random.random(), side="right"
+                            )
+                        )
                     ]
 
                     # Propose

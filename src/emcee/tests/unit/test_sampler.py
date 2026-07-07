@@ -576,6 +576,26 @@ def test_rng_reproducibility(nwalkers=32, ndim=3):
     assert not np.array_equal(run(42), run(43))
 
 
+@pytest.mark.parametrize("weights", [[1.0], [1.0, 3.0], [0.5, 0.25, 0.25]])
+def test_move_selection_matches_choice(weights, nwalkers=32, ndim=3):
+    # The precomputed-CDF move selection used in the sampling loop must
+    # reproduce ``Generator.choice`` exactly: the same move indices from
+    # the same RNG stream, leaving the generator in the same state
+    schedule = [(moves.StretchMove(), w) for w in weights]
+    sampler = EnsembleSampler(nwalkers, ndim, normal_log_prob, moves=schedule)
+    g_choice = np.random.default_rng(77)
+    g_cdf = np.random.default_rng(77)
+    expected = [
+        g_choice.choice(len(weights), p=sampler._weights) for _ in range(256)
+    ]
+    got = [
+        sampler._move_cdf.searchsorted(g_cdf.random(), side="right")
+        for _ in range(256)
+    ]
+    np.testing.assert_array_equal(expected, got)
+    assert g_choice.bit_generator.state == g_cdf.bit_generator.state
+
+
 def test_rng_argument(nwalkers=32, ndim=3):
     # A ``Generator`` is used as-is.
     gen = np.random.default_rng(42)
