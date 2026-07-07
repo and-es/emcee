@@ -190,20 +190,19 @@ class EnsembleSampler:
 
             # Grab the last step so that we can restart
             it = self.backend.iteration
-            if it > 0:
-                self._previous_state = self.get_last_sample()
+            self._previous_state = (
+                self.get_last_sample() if it > 0 else None
+            )
 
         # The sampler's random number generator; an explicit ``rng``
         # argument takes precedence over a state stored in the backend
         if rng is not None or state is None:
             self._random = ensure_rng(rng)
-            if rng is not None:
+            if rng is not None and self._previous_state is not None:
                 # Drop the backend's stored state from the resume point
                 # too; otherwise ``sample`` would restore it over the
                 # explicit generator when the run resumes
-                previous_state = getattr(self, "_previous_state", None)
-                if previous_state is not None:
-                    previous_state.random_state = None
+                self._previous_state.random_state = None
         else:
             try:
                 self._random = stored_state_to_generator(state)
@@ -218,9 +217,8 @@ class EnsembleSampler:
                 self._random = ensure_rng(rng)
                 # Don't re-apply the broken state when sampling resumes
                 # from the last stored sample
-                previous_state = getattr(self, "_previous_state", None)
-                if previous_state is not None:
-                    previous_state.random_state = None
+                if self._previous_state is not None:
+                    self._previous_state.random_state = None
 
         # Do a little bit of _magic_ to make the likelihood call with
         # ``args`` and ``kwargs`` pickleable.

@@ -87,6 +87,18 @@ def test_uninit_errors(backend):
                 getattr(be, "get_" + k)()
 
 
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_resume_from_empty_backend_errors():
+    # Reopening a backend that was reset but never stepped must raise
+    # the informative ValueError from run_mcmc(None), not an
+    # AttributeError about the missing resume point
+    with backends.TempHDFBackend() as b:
+        EnsembleSampler(32, 3, normal_log_prob, backend=b)
+        sampler = EnsembleSampler(32, 3, normal_log_prob, backend=b)
+        with pytest.raises(ValueError, match="Cannot have"):
+            sampler.run_mcmc(None, 3)
+
+
 @pytest.mark.parametrize("backend", all_backends)
 def test_blob_usage_errors(backend):
     with backend() as be:
