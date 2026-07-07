@@ -25,8 +25,8 @@ class State:
     """The state of the ensemble during an MCMC run
 
     For backwards compatibility, this will unpack into ``coords, log_prob,
-    (blobs), random_state`` when iterated over (where ``blobs`` will only be
-    included if it exists and is not ``None``).
+    random_state, (blobs)`` when iterated over (where ``blobs`` comes last
+    and is only included if it exists and is not ``None``).
 
     Args:
         coords (ndarray[nwalkers, ndim]): The current positions of the walkers
