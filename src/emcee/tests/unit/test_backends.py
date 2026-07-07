@@ -223,6 +223,29 @@ def test_resume_random_state():
 
 
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_explicit_rng_overrides_backend_on_resume():
+    # An explicit ``rng`` takes precedence over the state stored in the
+    # backend, including when the run resumes from the stored sample
+    with backends.TempHDFBackend() as b:
+        run_sampler(b, nsteps=5)
+
+        def resume(seed):
+            sampler = EnsembleSampler(
+                32, 3, normal_log_prob_blobs, backend=b, rng=seed
+            )
+            # ``store=False`` keeps the file untouched so that every
+            # resume starts from the same stored sample
+            state = sampler.run_mcmc(None, 3, store=False)
+            return state.coords
+
+        c1 = resume(123)
+        c2 = resume(456)
+        c3 = resume(123)
+    assert not np.array_equal(c1, c2)
+    assert np.array_equal(c1, c3)
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
 def test_legacy_random_state_migration():
     # A file written by an older emcee stores the random state as
     # ``random_state_{i}`` attributes; it must be readable and migrated

@@ -197,6 +197,13 @@ class EnsembleSampler:
         # argument takes precedence over a state stored in the backend
         if rng is not None or state is None:
             self._random = ensure_rng(rng)
+            if rng is not None:
+                # Drop the backend's stored state from the resume point
+                # too; otherwise ``sample`` would restore it over the
+                # explicit generator when the run resumes
+                previous_state = getattr(self, "_previous_state", None)
+                if previous_state is not None:
+                    previous_state.random_state = None
         else:
             try:
                 self._random = stored_state_to_generator(state)
