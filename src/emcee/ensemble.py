@@ -190,9 +190,7 @@ class EnsembleSampler:
 
             # Grab the last step so that we can restart
             it = self.backend.iteration
-            self._previous_state = (
-                self.get_last_sample() if it > 0 else None
-            )
+            self._previous_state = self.get_last_sample() if it > 0 else None
 
         # The sampler's random number generator; an explicit ``rng``
         # argument takes precedence over a state stored in the backend
@@ -439,8 +437,6 @@ class EnsembleSampler:
         if thin_by <= 0:
             raise ValueError("Invalid thinning argument")
 
-        yield_step = thin_by
-        checkpoint_step = thin_by
         if store and iterations is not None:
             self.backend.grow(iterations, state.blobs)
 
@@ -448,12 +444,12 @@ class EnsembleSampler:
             progress_kwargs = {}
 
         # Inject the progress bar
-        total = None if iterations is None else iterations * yield_step
+        total = None if iterations is None else iterations * thin_by
         with get_progress_bar(progress, total, **progress_kwargs) as pbar:
             i = 0
             yielded_state = None
             for _ in count() if iterations is None else range(iterations):
-                for _ in range(yield_step):
+                for _ in range(thin_by):
                     # Don't mutate a State that has been handed to the
                     # user: moves update the ensemble state in place, so
                     # continue from a fresh copy with independent arrays
@@ -496,7 +492,7 @@ class EnsembleSampler:
                         move.tune(state, accepted)
 
                     # Save the new step
-                    if store and (i + 1) % checkpoint_step == 0:
+                    if store and (i + 1) % thin_by == 0:
                         self.backend.save_step(state, accepted)
 
                     pbar.update(1)

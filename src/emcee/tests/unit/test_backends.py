@@ -275,6 +275,7 @@ def test_explicit_rng_overrides_backend_on_resume():
             # ``store=False`` keeps the file untouched so that every
             # resume starts from the same stored sample
             state = sampler.run_mcmc(None, 3, store=False)
+            assert state is not None
             return state.coords
 
         c1 = resume(123)
