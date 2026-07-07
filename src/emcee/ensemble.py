@@ -663,7 +663,7 @@ class EnsembleSampler:
 
     get_log_prob.__doc__ = Backend.get_log_prob.__doc__
 
-    def get_last_sample(self, **kwargs: Any) -> State:
+    def get_last_sample(self) -> State:
         return self.backend.get_last_sample()
 
     get_last_sample.__doc__ = Backend.get_last_sample.__doc__

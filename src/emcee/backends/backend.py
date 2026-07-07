@@ -60,9 +60,17 @@ class Backend:
         """Returns ``True`` if the model includes blobs"""
         return self.blobs is not None
 
+    @staticmethod
+    def _check_selection(thin: int, discard: int) -> None:
+        if thin < 1:
+            raise ValueError(f"'thin' must be at least 1; got {thin}")
+        if discard < 0:
+            raise ValueError(f"'discard' must be non-negative; got {discard}")
+
     def get_value(
         self, name: str, flat: bool = False, thin: int = 1, discard: int = 0
     ) -> Any:
+        self._check_selection(thin, discard)
         if self.iteration <= 0:
             raise AttributeError(
                 "you must run the sampler with "

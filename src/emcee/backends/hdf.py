@@ -182,6 +182,7 @@ class HDFBackend(Backend):
     def get_value(
         self, name: str, flat: bool = False, thin: int = 1, discard: int = 0
     ) -> Any:
+        self._check_selection(thin, discard)
         if not self.initialized:
             raise AttributeError(
                 "You must run the sampler with "

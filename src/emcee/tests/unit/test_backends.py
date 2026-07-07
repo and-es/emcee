@@ -112,6 +112,18 @@ def test_blob_usage_errors(backend):
             run_sampler(be, blobs=True)
 
 
+@pytest.mark.parametrize("backend", all_backends)
+def test_get_value_invalid_selection(backend):
+    with backend() as be:
+        run_sampler(be, nsteps=3)
+        with pytest.raises(ValueError, match="'thin' must be"):
+            be.get_chain(thin=0)
+        with pytest.raises(ValueError, match="'thin' must be"):
+            be.get_chain(thin=-2)
+        with pytest.raises(ValueError, match="'discard' must be"):
+            be.get_chain(discard=-1)
+
+
 @pytest.mark.parametrize(
     "backend,dtype,blobs",
     list(product(other_backends, dtypes, [True, False])),
