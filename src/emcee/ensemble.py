@@ -312,6 +312,19 @@ class EnsembleSampler:
     def iteration(self) -> int:
         return self.backend.iteration
 
+    @property
+    def _map_fn(self) -> Callable[..., Iterable[Any]]:
+        """The ``map`` implementation used to evaluate the log-probability
+        across walkers: the ``pool``'s if one is set, the built-in otherwise.
+
+        Resolved on every access (rather than once in ``__init__``) so that
+        assigning ``sampler.pool`` after construction keeps working and no
+        unpicklable bound method of the pool is stored on the sampler.
+        """
+        if self.pool is not None:
+            return self.pool.map
+        return map
+
     def reset(self) -> None:
         """
         Reset the bookkeeping parameters
@@ -426,11 +439,6 @@ class EnsembleSampler:
         if store and iterations is not None:
             self.backend.grow(iterations, state.blobs)
 
-        # Set up a wrapper around the relevant model functions
-        if self.pool is not None:
-            map_fn = self.pool.map
-        else:
-            map_fn = map
         if progress_kwargs is None:
             progress_kwargs = {}
 
@@ -466,7 +474,7 @@ class EnsembleSampler:
                     model = Model(
                         self.log_prob_fn,
                         self.compute_log_prob,
-                        map_fn,
+                        self._map_fn,
                         self._random,
                     )
 
@@ -573,14 +581,7 @@ class EnsembleSampler:
         if self.vectorize:
             results = self.log_prob_fn(p)
         else:
-            # If the `pool` property of the sampler has been set (i.e. we want
-            # to use `multiprocessing`), use the `pool`'s map method.
-            # Otherwise, just use the built-in `map` function.
-            if self.pool is not None:
-                map_func = self.pool.map
-            else:
-                map_func = map
-            results = list(map_func(self.log_prob_fn, p))
+            results = list(self._map_fn(self.log_prob_fn, p))
 
         # Does the log-prob function return blobs (extra values beyond the
         # log-probability)? A bare scalar or a length-1 sequence (e.g.
