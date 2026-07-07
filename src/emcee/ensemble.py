@@ -124,6 +124,8 @@ class EnsembleSampler:
             # Materialize first so that a one-shot iterator is not
             # exhausted by the ``zip`` probe below
             move_list = list(moves)
+            if not move_list:
+                raise ValueError("'moves' must not be empty")
             try:
                 all_moves, weights = zip(*move_list, strict=True)
             except TypeError:
@@ -137,7 +139,20 @@ class EnsembleSampler:
             weights = [1.0]
         self._moves = all_moves
         self._weights = np.atleast_1d(weights).astype(float)
-        self._weights /= np.sum(self._weights)
+        if not np.all(np.isfinite(self._weights)):
+            raise ValueError("move weights must be finite")
+        if np.any(self._weights < 0):
+            raise ValueError("move weights must be non-negative")
+        # Individually finite weights can still overflow to an infinite
+        # sum, which would normalize to all-zero probabilities; the
+        # explicit check below replaces numpy's overflow warning
+        with np.errstate(over="ignore"):
+            total_weight = np.sum(self._weights)
+        if total_weight <= 0:
+            raise ValueError("at least one move weight must be positive")
+        if not np.isfinite(total_weight):
+            raise ValueError("move weights must have a finite sum")
+        self._weights /= total_weight
 
         if vectorize and pool is not None:
             warnings.warn(

@@ -123,6 +123,31 @@ def test_errors(backend, nwalkers=32, ndim=3, nsteps=5, seed=1234):
         sampler.run_mcmc(rng.standard_normal((nwalkers, ndim)), nsteps)
 
 
+@pytest.mark.parametrize(
+    "bad_moves, match",
+    [
+        (
+            [(moves.StretchMove(), 0.0), (moves.GaussianMove(0.5), 0.0)],
+            "at least one move weight must be positive",
+        ),
+        (
+            [(moves.StretchMove(), -1.0), (moves.GaussianMove(0.5), 2.0)],
+            "move weights must be non-negative",
+        ),
+        ([(moves.StretchMove(), np.nan)], "move weights must be finite"),
+        ([(moves.StretchMove(), np.inf)], "move weights must be finite"),
+        (
+            [(moves.StretchMove(), 1e308), (moves.GaussianMove(0.5), 1e308)],
+            "move weights must have a finite sum",
+        ),
+        ([], "'moves' must not be empty"),
+    ],
+)
+def test_invalid_move_weights(bad_moves, match, nwalkers=32, ndim=3):
+    with pytest.raises(ValueError, match=match):
+        EnsembleSampler(nwalkers, ndim, normal_log_prob, moves=bad_moves)
+
+
 def run_sampler(
     backend,
     nwalkers=32,
