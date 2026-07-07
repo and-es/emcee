@@ -584,10 +584,12 @@ class EnsembleSampler:
         """
         p = coords
 
-        # Check that the parameters are in physical ranges.
-        if np.any(np.isinf(p)):
-            raise ValueError("At least one parameter value was infinite")
-        if np.any(np.isnan(p)):
+        # Check that the parameters are in physical ranges. A single
+        # ``isfinite`` scan covers both checks; the separate scans are
+        # only rerun on failure to raise the historical messages.
+        if not np.all(np.isfinite(p)):
+            if np.any(np.isinf(p)):
+                raise ValueError("At least one parameter value was infinite")
             raise ValueError("At least one parameter value was NaN")
 
         # If the parmaeters are named, then switch to dictionaries
@@ -610,7 +612,20 @@ class EnsembleSampler:
             has_blobs = False
 
         if not has_blobs:
-            log_prob = np.array([_scalar(res) for res in results])
+            # Fast path: one float per walker converts in a single numpy
+            # pass, and a column of length-1 sequences flattens to the
+            # same values ``_scalar`` would produce. Anything irregular
+            # falls back to the per-walker conversion so its error
+            # messages and edge cases are preserved.
+            try:
+                log_prob = np.array(results, dtype=float)
+            except (TypeError, ValueError):
+                log_prob = np.array([_scalar(res) for res in results])
+            else:
+                if log_prob.ndim == 2 and log_prob.shape[1] == 1:
+                    log_prob = log_prob.ravel()
+                elif log_prob.ndim != 1:
+                    log_prob = np.array([_scalar(res) for res in results])
             blob = None
         else:
             if any(n <= 1 for n in lengths):
