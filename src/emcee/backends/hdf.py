@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import contextmanager
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Any
 
@@ -11,6 +12,8 @@ from .. import __version__
 from .backend import Backend
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from numpy.typing import DTypeLike
 
     from ..state import State
@@ -83,6 +86,8 @@ class HDFBackend(Backend):
     compression: str | int | None
     compression_opts: Any
     dtype_set: bool
+    _file: h5py.File | None
+    _session_cache: dict[str, Any] | None
 
     def __init__(
         self,
@@ -106,13 +111,15 @@ class HDFBackend(Backend):
         else:
             self.dtype_set = True
             self.dtype = dtype
+        self._file = None
+        self._session_cache = None
 
     @property
     def initialized(self) -> bool:
         if not os.path.exists(self.filename):
             return False
         try:
-            with self.open() as f:
+            with self._session() as f:
                 return self.name in f
         except OSError:
             return False
@@ -134,6 +141,64 @@ class HDFBackend(Backend):
                 self.dtype_set = True
         return f
 
+    @contextmanager
+    def writing(self) -> Iterator[None]:
+        """Keep the file open across a batch of stores
+
+        While this context is active, all backend accesses share a
+        single append-mode handle instead of opening and closing the
+        file once per call, which is the dominant per-step cost of this
+        backend. The file stays locked for the whole batch, so other
+        processes cannot read it until the context exits.
+        """
+        if self._file is not None:
+            # Already inside a session; nest transparently
+            yield
+            return
+        with self.open("a") as f:
+            self._file = f
+            try:
+                yield
+            finally:
+                self._file = None
+                self._session_cache = None
+
+    @contextmanager
+    def _session(self, mode: str = "r") -> Iterator[h5py.File]:
+        """Yield the session handle if one is open, else open the file
+
+        A session handle is always writable, so it can serve requests
+        for any ``mode``; ``read_only`` backends can never enter
+        :func:`writing`, which opens with append mode.
+        """
+        if self._file is not None:
+            yield self._file
+            return
+        with self.open(mode) as f:
+            yield f
+
+    def _session_handles(self, f: h5py.File) -> dict[str, Any]:
+        """Group/dataset handles and metadata cached for a write session
+
+        Only valid while :func:`writing` holds ``f`` open; ``grow`` and
+        ``reset`` invalidate the cache because they change the cached
+        metadata (and the blobs dataset may spring into existence).
+        """
+        c = self._session_cache
+        if c is None:
+            g = f[self.name]
+            c = self._session_cache = {
+                "group": g,
+                "chain": g["chain"],
+                "log_prob": g["log_prob"],
+                "blobs": g["blobs"] if "blobs" in g else None,
+                "accepted": g["accepted"],
+                "shape": (g.attrs["nwalkers"], g.attrs["ndim"]),
+                "has_blobs": bool(g.attrs["has_blobs"]),
+                "iteration": g.attrs["iteration"],
+            }
+        return c
+
     def reset(self, nwalkers: int, ndim: int) -> None:
         """Clear the state of the chain and empty the backend
 
@@ -142,7 +207,7 @@ class HDFBackend(Backend):
             ndim (int): The number of dimensions
 
         """
-        with self.open("a") as f:
+        with self._session("a") as f:
             if self.name in f:
                 del f[self.name]
 
@@ -174,9 +239,13 @@ class HDFBackend(Backend):
                 compression=self.compression,
                 compression_opts=self.compression_opts,
             )
+        self._session_cache = None
 
     def has_blobs(self) -> bool:
-        with self.open() as f:
+        c = self._session_cache
+        if c is not None:
+            return c["has_blobs"]
+        with self._session() as f:
             return bool(f[self.name].attrs["has_blobs"])
 
     def get_value(
@@ -189,7 +258,7 @@ class HDFBackend(Backend):
                 "'store == True' before accessing the "
                 "results"
             )
-        with self.open() as f:
+        with self._session() as f:
             g = f[self.name]
             iteration = g.attrs["iteration"]
             if iteration <= 0:
@@ -211,23 +280,29 @@ class HDFBackend(Backend):
 
     @property
     def shape(self) -> tuple[int, int]:
-        with self.open() as f:
+        c = self._session_cache
+        if c is not None:
+            return c["shape"]
+        with self._session() as f:
             g = f[self.name]
             return g.attrs["nwalkers"], g.attrs["ndim"]
 
     @property
     def iteration(self) -> int:
-        with self.open() as f:
+        c = self._session_cache
+        if c is not None:
+            return c["iteration"]
+        with self._session() as f:
             return f[self.name].attrs["iteration"]
 
     @property
     def accepted(self) -> np.ndarray:
-        with self.open() as f:
+        with self._session() as f:
             return f[self.name]["accepted"][...]
 
     @property
     def random_state(self) -> Any:
-        with self.open() as f:
+        with self._session() as f:
             attrs = f[self.name].attrs
             if "random_state" in attrs:
                 # A bit generator state dict serialized as JSON
@@ -252,7 +327,7 @@ class HDFBackend(Backend):
         """
         self._check_blobs(blobs)
 
-        with self.open("a") as f:
+        with self._session("a") as f:
             g = f[self.name]
             ntot = g.attrs["iteration"] + ngrow
             has_blobs = g.attrs["has_blobs"]
@@ -286,6 +361,7 @@ class HDFBackend(Backend):
                 else:
                     g["blobs"].resize(ntot, axis=0)
                 g.attrs["has_blobs"] = True
+        self._session_cache = None
 
     def save_step(self, state: State, accepted: np.ndarray) -> None:
         """Save a step to the backend
@@ -298,7 +374,31 @@ class HDFBackend(Backend):
         """
         self._check(state, accepted)
 
-        with self.open("a") as f:
+        f = self._file
+        if f is not None:
+            # Inside a write session, reuse the cached handles instead
+            # of looking the group and datasets up again on every step
+            c = self._session_handles(f)
+            g = c["group"]
+            iteration = c["iteration"]
+
+            c["chain"][iteration, :, :] = state.coords
+            c["log_prob"][iteration, :] = state.log_prob
+            if state.blobs is not None:
+                c["blobs"][iteration, :] = state.blobs
+            c["accepted"][:] += accepted
+
+            self._store_random_state(g, state)
+
+            g.attrs["iteration"] = iteration + 1
+            c["iteration"] = iteration + 1
+
+            # The session handle is not closed between steps, so match
+            # the durability of the close-per-step behavior
+            f.flush()
+            return
+
+        with self._session("a") as f:
             g = f[self.name]
             iteration = g.attrs["iteration"]
 
@@ -308,16 +408,19 @@ class HDFBackend(Backend):
                 g["blobs"][iteration, :] = state.blobs
             g["accepted"][:] += accepted
 
-            if "random_state" not in g.attrs:
-                # First save after resuming a file written by an older
-                # version of emcee: drop the legacy per-element attributes
-                for k in [k for k in g.attrs if k.startswith("random_state_")]:
-                    del g.attrs[k]
-            g.attrs["random_state"] = json.dumps(
-                state.random_state, default=_json_default
-            )
+            self._store_random_state(g, state)
 
             g.attrs["iteration"] = iteration + 1
+
+    def _store_random_state(self, g: h5py.Group, state: State) -> None:
+        if "random_state" not in g.attrs:
+            # First save after resuming a file written by an older
+            # version of emcee: drop the legacy per-element attributes
+            for k in [k for k in g.attrs if k.startswith("random_state_")]:
+                del g.attrs[k]
+        g.attrs["random_state"] = json.dumps(
+            state.random_state, default=_json_default
+        )
 
 
 class TempHDFBackend:

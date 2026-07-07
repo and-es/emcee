@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Iterable, Mapping
+from contextlib import nullcontext
 from itertools import count
 from typing import TYPE_CHECKING, Any
 
@@ -445,15 +446,19 @@ class EnsembleSampler:
         if thin_by <= 0:
             raise ValueError("Invalid thinning argument")
 
-        if store and iterations is not None:
-            self.backend.grow(iterations, state.blobs)
-
         if progress_kwargs is None:
             progress_kwargs = {}
 
         # Inject the progress bar
         total = None if iterations is None else iterations * thin_by
-        with get_progress_bar(progress, total, **progress_kwargs) as pbar:
+        # Hold the backend's write session (e.g. a single open HDF5
+        # handle) across the whole run when the chain is being stored
+        with (
+            self.backend.writing() if store else nullcontext(),
+            get_progress_bar(progress, total, **progress_kwargs) as pbar,
+        ):
+            if store and iterations is not None:
+                self.backend.grow(iterations, state.blobs)
             i = 0
             yielded_state = None
             for _ in count() if iterations is None else range(iterations):

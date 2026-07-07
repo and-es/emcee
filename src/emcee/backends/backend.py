@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Self
 
 import numpy as np
@@ -8,6 +9,8 @@ from .. import autocorr
 from ..state import State
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from numpy.typing import DTypeLike
 
 __all__ = ["Backend"]
@@ -37,6 +40,15 @@ class Backend:
         if dtype is None:
             dtype = np.float64
         self.dtype = dtype
+
+    @contextmanager
+    def writing(self) -> Iterator[None]:
+        """Bracket a batch of stores, e.g. one :func:`sample` run
+
+        The in-memory backend needs no setup; subclasses can override
+        this to hold resources (like an open file) across the batch.
+        """
+        yield
 
     def reset(self, nwalkers: int, ndim: int) -> None:
         """Clear the state of the chain and empty the backend

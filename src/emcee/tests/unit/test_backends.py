@@ -247,6 +247,49 @@ def test_resume_random_state():
 
 
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_interrupted_run_resumes_consistently():
+    # An exception raised while consuming ``sample`` must end the write
+    # session and close the file; resuming from the reopened backend
+    # then reproduces an uninterrupted reference run exactly
+    nwalkers, ndim = 32, 3
+    coords = np.random.default_rng(42).standard_normal((nwalkers, ndim))
+
+    ref = EnsembleSampler(nwalkers, ndim, normal_log_prob, rng=7)
+    ref.run_mcmc(coords, 10)
+
+    with backends.TempHDFBackend() as b:
+        sampler = EnsembleSampler(
+            nwalkers, ndim, normal_log_prob, backend=b, rng=7
+        )
+        with pytest.raises(RuntimeError, match="interrupted"):
+            for i, _ in enumerate(sampler.sample(coords, iterations=10)):
+                if i == 4:
+                    raise RuntimeError("interrupted")
+        # The abandoned generator released its session handle
+        assert b._file is None
+        assert b.iteration == 5
+
+        resumed = EnsembleSampler(nwalkers, ndim, normal_log_prob, backend=b)
+        resumed.run_mcmc(None, 5)
+        assert np.allclose(resumed.get_chain(), ref.get_chain())
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_read_during_run():
+    # In-process reads share the write-session handle, so the chain so
+    # far can be inspected between the yields of an HDF-backed run
+    nwalkers, ndim = 32, 3
+    coords = np.random.default_rng(42).standard_normal((nwalkers, ndim))
+    with backends.TempHDFBackend() as b:
+        sampler = EnsembleSampler(
+            nwalkers, ndim, normal_log_prob, backend=b, rng=7
+        )
+        for i, _ in enumerate(sampler.sample(coords, iterations=5)):
+            chain = sampler.get_chain()
+            assert chain.shape == (i + 1, nwalkers, ndim)
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
 def test_grow_blob_mismatch_leaves_file_untouched():
     # A blob-shape mismatch must be detected before any dataset is
     # resized, so the failed grow leaves the file consistent
