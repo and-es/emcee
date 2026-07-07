@@ -3,7 +3,6 @@ import pytest
 
 from emcee import moves
 from emcee.model import Model
-from emcee.moves.de import _get_nondiagonal_pairs
 from emcee.moves.move import Move
 from emcee.state import State
 
@@ -13,7 +12,7 @@ __all__ = [
     "test_propose_requires_log_prob",
     "test_gaussian_invalid_cov_shape",
     "test_gaussian_invalid_factor",
-    "test_nondiagonal_pairs_cache_is_read_only",
+    "test_de_pairs_are_distinct",
     "test_walk_invalid_s",
 ]
 
@@ -92,13 +91,15 @@ def test_de_snooker_degenerate_walker():
     assert np.all(factors == -np.inf)
 
 
-def test_nondiagonal_pairs_cache_is_read_only():
-    # The result is cached and shared, so mutating it must fail instead of
-    # silently polluting the cache for subsequent callers.
-    pairs = _get_nondiagonal_pairs(5)
-    with pytest.raises(ValueError, match="read-only"):
-        pairs[0, 0] = -1
-
-    # A second call must return the same, unmodified pairs.
-    expected = [(i, j) for i in range(5) for j in range(5) if i != j]
-    assert sorted(map(tuple, _get_nondiagonal_pairs(5))) == sorted(expected)
+def test_de_pairs_are_distinct():
+    # The difference vector must always come from two distinct
+    # complementary walkers: with a two-walker complement and sigma=0
+    # every proposal is exactly g0 away from the start, never 0.
+    rng = np.random.default_rng(0)
+    move = moves.DEMove(sigma=0.0)
+    move.setup(np.zeros((4, 1)))
+    sample = np.zeros((512, 1))
+    complement = [np.array([[0.0], [1.0]])]
+    q, factors = move.get_proposal(sample, complement, rng)
+    assert np.all(np.abs(q) == move.g0)
+    assert np.all(factors == 0.0)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -57,18 +56,20 @@ class DEMove(RedBlueMove):
     ) -> tuple[np.ndarray, np.ndarray]:
         s = sample
         c = np.concatenate(complement, axis=0)
-        ns, ndim = s.shape
-        nc = c.shape[0]
+        ns = len(s)
+        nc = len(c)
 
-        # Get the pair indices
-        pairs = _get_nondiagonal_pairs(nc)
-
-        # Sample from the pairs
-        indices = random.choice(pairs.shape[0], size=ns, replace=True)
-        pairs = pairs[indices]
+        # Draw an ordered pair of distinct complementary walkers for
+        # each walker: ``i`` uniform, then ``j`` uniform over the
+        # remaining indices. This samples the same distribution as
+        # enumerating all non-diagonal index pairs, without the
+        # O(nc^2) pair table.
+        i = random.integers(nc, size=ns)
+        j = random.integers(nc - 1, size=ns)
+        j += j >= i
 
         # Compute diff vectors
-        diffs = np.diff(c[pairs], axis=1).squeeze(axis=1)  # (ns, ndim)
+        diffs = c[j] - c[i]  # (ns, ndim)
 
         # Sample a gamma value for each walker following Nelson et al. (2013)
         gamma = self.g0 * (
@@ -84,24 +85,3 @@ class DEMove(RedBlueMove):
         q = s + gamma * diffs
 
         return q, np.zeros(ns, dtype=np.float64)
-
-
-# With an odd number of walkers the two complement sizes differ by one
-# and alternate within every propose call, so the cache must hold both
-# to avoid recomputing the O(n^2) pair table twice per step.
-@lru_cache(maxsize=2)
-def _get_nondiagonal_pairs(n: int) -> np.ndarray:
-    """Get the indices of a square matrix of size n, excluding the
-    diagonal."""
-    rows, cols = np.tril_indices(n, -1)  # -1 to exclude diagonal
-
-    # Combine rows-cols and cols-rows pairs
-    pairs = np.column_stack(
-        [np.concatenate([rows, cols]), np.concatenate([cols, rows])]
-    )
-
-    # The array is cached and shared between callers, so make it read-only
-    # to prevent accidental in-place modification from polluting the cache.
-    pairs.setflags(write=False)
-
-    return pairs
