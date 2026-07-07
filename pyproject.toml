@@ -38,6 +38,20 @@ Source = "https://github.com/dfm/emcee"
 [project.optional-dependencies]
 extras = ["h5py", "scipy", "tqdm", "ipywidgets"]
 tests = ["pytest", "pytest-cov", "coverage[toml]"]
+# Notebooks are not executed at build time (nb_execution_mode = "off" in
+# docs/conf.py), so only the packages needed by Sphinx itself and by
+# autodoc imports of emcee (scipy for KDEMove, h5py for HDFBackend) are
+# listed. The pins only support Python 3.12+, while the project itself
+# still runs on 3.11; the markers keep the 3.11 resolution solvable
+# (docs are built on Python 3.13, see .readthedocs.yaml).
+docs = [
+    "sphinx==9.1.0; python_version >= '3.12'",
+    "sphinx-book-theme==1.2.0; python_version >= '3.12'",
+    "myst-nb==1.4.0; python_version >= '3.12'",
+    "ipython==9.15.0; python_version >= '3.12'",
+    "scipy==1.18.0; python_version >= '3.12'",
+    "h5py==3.16.0; python_version >= '3.12'",
+]
 
 [dependency-groups]
 dev = ["ty", "pre-commit", "coverage[toml]"]
