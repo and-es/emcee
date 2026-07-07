@@ -18,7 +18,9 @@ class WalkMove(RedBlueMove):
 
     Args:
         s (Optional[int]): The number of helper walkers to use. By default
-            it will use all the walkers in the complement.
+            it will use all the walkers in the complement. Must be at
+            least 2 and no larger than the number of complementary
+            walkers.
 
     """
 
@@ -37,10 +39,31 @@ class WalkMove(RedBlueMove):
         s = sample
         c = np.concatenate(complement, axis=0)
         Ns, Nc = len(s), len(c)
-        q = np.empty_like(s)
         s0 = Nc if self.s is None else self.s
-        for i in range(Ns):
-            inds = random.choice(Nc, s0, replace=False)
-            cov = np.atleast_2d(np.cov(c[inds], rowvar=False))
-            q[i] = random.multivariate_normal(s[i], cov)
+        if not 2 <= s0 <= Nc:
+            raise ValueError(
+                f"'s' must be between 2 and the number of complementary "
+                f"walkers ({Nc}); got {s0}"
+            )
+
+        # For iid standard normal z_j, the perturbation
+        # sum_j z_j * (c_j - mean(c)) / sqrt(s0 - 1) is Gaussian with
+        # covariance exactly equal to the sample covariance of the helper
+        # subset, so this matches sampling from a multivariate normal
+        # centered on each walker with that covariance.
+        if s0 == Nc:
+            # The subset is always the full complement, so no per-walker
+            # subset selection is needed.
+            centered = c - c.mean(axis=0)
+            z = random.standard_normal((Ns, Nc))
+            q = s + z @ centered / np.sqrt(Nc - 1)
+        else:
+            # Sample without replacement for every walker at once by
+            # taking the first s0 entries of an independent random
+            # permutation per row.
+            inds = np.argsort(random.random((Ns, Nc)), axis=1)[:, :s0]
+            subs = c[inds]  # (Ns, s0, ndim)
+            centered = subs - subs.mean(axis=1, keepdims=True)
+            z = random.standard_normal((Ns, s0))
+            q = s + np.einsum("ns,nsd->nd", z, centered) / np.sqrt(s0 - 1)
         return q, np.zeros(Ns, dtype=np.float64)

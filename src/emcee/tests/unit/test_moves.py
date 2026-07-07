@@ -14,6 +14,7 @@ __all__ = [
     "test_gaussian_invalid_cov_shape",
     "test_gaussian_invalid_factor",
     "test_nondiagonal_pairs_cache_is_read_only",
+    "test_walk_invalid_s",
 ]
 
 
@@ -65,6 +66,17 @@ def test_gaussian_invalid_cov_shape():
 def test_gaussian_invalid_factor():
     with pytest.raises(ValueError, match="'factor' must be >= 1.0"):
         moves.GaussianMove(1.0, factor=0.5)
+
+
+@pytest.mark.parametrize("s", [0, 1, 17])
+def test_walk_invalid_s(s):
+    # 's' larger than the complement or too small to define a covariance
+    # must fail with an explicit error.
+    rng = np.random.default_rng(0)
+    sample = rng.standard_normal((8, 2))
+    complement = [rng.standard_normal((16, 2))]
+    with pytest.raises(ValueError, match="'s' must be between 2 and"):
+        moves.WalkMove(s=s).get_proposal(sample, complement, rng)
 
 
 def test_nondiagonal_pairs_cache_is_read_only():
