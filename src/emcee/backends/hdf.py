@@ -154,7 +154,7 @@ class HDFBackend(Backend):
             g.attrs["iteration"] = 0
             g.create_dataset(
                 "accepted",
-                data=np.zeros(nwalkers),
+                data=np.zeros(nwalkers, dtype=np.int64),
                 compression=self.compression,
                 compression_opts=self.compression_opts,
             )

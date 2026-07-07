@@ -49,7 +49,9 @@ class Backend:
         self.nwalkers = int(nwalkers)
         self.ndim = int(ndim)
         self.iteration = 0
-        self.accepted = np.zeros(self.nwalkers, dtype=self.dtype)
+        # A per-walker count of accepted proposals, not chain data, so
+        # it gets an integer dtype independent of ``self.dtype``
+        self.accepted = np.zeros(self.nwalkers, dtype=np.int64)
         self.chain = np.empty((0, self.nwalkers, self.ndim), dtype=self.dtype)
         self.log_prob = np.empty((0, self.nwalkers), dtype=self.dtype)
         self.blobs = None
