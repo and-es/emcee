@@ -1,3 +1,4 @@
+import logging
 import pickle
 from itertools import islice, product
 
@@ -615,6 +616,27 @@ def test_compute_log_prob_invalid_coords(nwalkers=32, ndim=3, seed=1234):
     coords_nan[0, 0] = np.nan
     with pytest.raises(ValueError, match="NaN"):
         sampler.compute_log_prob(coords_nan)
+
+
+def test_log_prob_fn_exception_logged(caplog, nwalkers=8, ndim=2, seed=1234):
+    def bad_log_prob(x, *args, **kwargs):
+        raise RuntimeError("boom")
+
+    coords = np.random.default_rng(seed).standard_normal((nwalkers, ndim))
+    sampler = EnsembleSampler(
+        nwalkers, ndim, bad_log_prob, args=[1], kwargs={"named": 2}
+    )
+    with (
+        caplog.at_level(logging.ERROR, logger="emcee.ensemble"),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        sampler.compute_log_prob(coords)
+
+    assert "Exception while calling your likelihood function" in caplog.text
+    assert "args: [1]" in caplog.text
+    assert "kwargs: {'named': 2}" in caplog.text
+    # logger.exception attaches the original traceback to the record
+    assert "RuntimeError: boom" in caplog.text
 
 
 def test_walkers_dependent_nonfinite(seed=1234):

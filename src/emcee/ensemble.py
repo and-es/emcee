@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import warnings
 from collections.abc import Iterable, Mapping
 from itertools import count
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike, DTypeLike
 
 __all__ = ["EnsembleSampler", "walkers_independent"]
+
+logger = logging.getLogger(__name__)
 
 
 class EnsembleSampler:
@@ -692,15 +695,17 @@ class _FunctionWrapper:
     def __call__(self, x: Any) -> Any:
         try:
             return self.f(x, *self.args, **self.kwargs)
-        except Exception:  # pragma: no cover
-            import traceback
-
-            print("emcee: Exception while calling your likelihood function:")
-            print("  params:", x)
-            print("  args:", self.args)
-            print("  kwargs:", self.kwargs)
-            print("  exception:")
-            traceback.print_exc()
+        except Exception:
+            # ``exception`` appends the traceback to the log record
+            logger.exception(
+                "Exception while calling your likelihood function:\n"
+                "  params: %s\n"
+                "  args: %s\n"
+                "  kwargs: %s",
+                x,
+                self.args,
+                self.kwargs,
+            )
             raise
 
 
