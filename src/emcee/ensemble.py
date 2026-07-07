@@ -548,8 +548,10 @@ class EnsembleSampler:
         ):
             pass
 
-        # Store so that the ``initial_state=None`` case will work
-        self._previous_state = results
+        # Store so that the ``initial_state=None`` case will work; a
+        # zero-step run yields nothing and keeps the previous resume point
+        if results is not None:
+            self._previous_state = results
 
         return results
 

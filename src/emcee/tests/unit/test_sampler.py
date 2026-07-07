@@ -212,6 +212,16 @@ def test_restart(backend):
         sampler.run_mcmc(None, 10)
 
 
+@pytest.mark.parametrize("backend", all_backends)
+def test_zero_steps_keeps_resume_point(backend):
+    # A zero-step run yields no state and must not clobber the resume
+    # point left by an earlier run
+    with backend() as be:
+        sampler = run_sampler(be, nsteps=5)
+        assert sampler.run_mcmc(None, 0) is None
+        sampler.run_mcmc(None, 5)
+
+
 def test_vectorize():
     def lp_vec(p):
         return -0.5 * np.sum(p**2, axis=1)
