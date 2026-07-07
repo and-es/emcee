@@ -16,6 +16,7 @@ except ImportError:
 __all__ = ["MPIPool"]
 
 deprecation_warning(
-    "The 'emcee.mpi_pool' module is deprecated; use the 'schwimmbad' "
-    "package (https://github.com/adrn/schwimmbad) instead"
+    "The 'emcee.mpi_pool' module is deprecated and will be removed in "
+    "the next major version; use the 'schwimmbad' package "
+    "(https://github.com/adrn/schwimmbad) instead"
 )

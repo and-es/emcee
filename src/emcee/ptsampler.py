@@ -16,6 +16,7 @@ except ImportError:
 __all__ = ["PTSampler"]
 
 deprecation_warning(
-    "The 'emcee.ptsampler' module is deprecated; use the 'ptemcee' "
-    "package (https://github.com/willvousden/ptemcee) instead"
+    "The 'emcee.ptsampler' module is deprecated and will be removed in "
+    "the next major version; use the 'ptemcee' package "
+    "(https://github.com/willvousden/ptemcee) instead"
 )
