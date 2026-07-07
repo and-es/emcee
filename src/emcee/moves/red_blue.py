@@ -114,14 +114,15 @@ class RedBlueMove(Move):
         inds = np.arange(nwalkers) % self.nsplits
         if self.randomize_split:
             model.random.shuffle(inds)
-        # The masks are loop-invariant; the coordinate sets are not, because
-        # each split updates ``state.coords`` in place.
+        # The masks are loop-invariant, and the coordinate sets only
+        # change where accepted proposals are written back, so build the
+        # sets once and patch the updated half in place after each split
         masks = [inds == j for j in range(self.nsplits)]
+        sets = [state.coords[m] for m in masks]
         for split in range(self.nsplits):
             S1 = masks[split]
 
             # Get the two halves of the ensemble.
-            sets = [state.coords[m] for m in masks]
             s = sets[split]
             c = sets[:split] + sets[split + 1 :]
 
@@ -137,5 +138,12 @@ class RedBlueMove(Move):
 
             new_state = State(q, log_prob=new_log_probs, blobs=new_blobs)
             state = self.update(state, new_state, accepted, S1)
+
+            # Keep the cached half consistent with ``state.coords`` for
+            # the remaining splits; boolean indexing preserves row order,
+            # so this writes exactly the rows ``update`` just accepted
+            if split + 1 < self.nsplits:
+                m2 = accepted[S1]
+                sets[split][m2] = q[m2]
 
         return state, accepted
