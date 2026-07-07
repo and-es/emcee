@@ -247,6 +247,21 @@ def test_resume_random_state():
 
 
 @pytest.mark.skipif(h5py is None, reason="HDF5 not available")
+def test_grow_blob_mismatch_leaves_file_untouched():
+    # A blob-shape mismatch must be detected before any dataset is
+    # resized, so the failed grow leaves the file consistent
+    with backends.TempHDFBackend() as b:
+        run_sampler(b, nsteps=3)
+        with pytest.raises(ValueError, match="Existing blobs have shape"):
+            b.grow(2, np.empty((32, 3)))
+        with h5py.File(b.filename, "r") as f:
+            g = f[b.name]
+            assert g["chain"].shape[0] == 3
+            assert g["log_prob"].shape[0] == 3
+            assert g["blobs"].shape[0] == 3
+
+
+@pytest.mark.skipif(h5py is None, reason="HDF5 not available")
 def test_explicit_rng_overrides_backend_on_resume():
     # An explicit ``rng`` takes precedence over the state stored in the
     # backend, including when the run resumes from the stored sample

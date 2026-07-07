@@ -255,10 +255,23 @@ class HDFBackend(Backend):
         with self.open("a") as f:
             g = f[self.name]
             ntot = g.attrs["iteration"] + ngrow
+            has_blobs = g.attrs["has_blobs"]
+            # Check the blob shape before any resize so that a mismatch
+            # leaves the file untouched
+            if (
+                blobs is not None
+                and has_blobs
+                and g["blobs"].dtype.shape != blobs.shape[1:]
+            ):
+                raise ValueError(
+                    "Existing blobs have shape {} but new blobs "
+                    "requested with shape {}".format(
+                        g["blobs"].dtype.shape, blobs.shape[1:]
+                    )
+                )
             g["chain"].resize(ntot, axis=0)
             g["log_prob"].resize(ntot, axis=0)
             if blobs is not None:
-                has_blobs = g.attrs["has_blobs"]
                 if not has_blobs:
                     nwalkers = g.attrs["nwalkers"]
                     dt = np.dtype((blobs.dtype, blobs.shape[1:]))
@@ -272,13 +285,6 @@ class HDFBackend(Backend):
                     )
                 else:
                     g["blobs"].resize(ntot, axis=0)
-                    if g["blobs"].dtype.shape != blobs.shape[1:]:
-                        raise ValueError(
-                            "Existing blobs have shape {} but new blobs "
-                            "requested with shape {}".format(
-                                g["blobs"].dtype.shape, blobs.shape[1:]
-                            )
-                        )
                 g.attrs["has_blobs"] = True
 
     def save_step(self, state: State, accepted: np.ndarray) -> None:
