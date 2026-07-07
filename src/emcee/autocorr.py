@@ -39,7 +39,10 @@ def function_1d(x: ArrayLike) -> np.ndarray:
     # Compute the FFT and then (from that) the auto-correlation function
     f = np.fft.fft(x - np.mean(x), n=2 * n)
     acf = np.fft.ifft(f * np.conjugate(f))[: len(x)].real
-    acf /= acf[0]
+    # A constant series has zero variance, making the normalization 0/0:
+    # return NaN for it without numpy's RuntimeWarning
+    with np.errstate(invalid="ignore"):
+        acf /= acf[0]
     return acf
 
 
@@ -112,7 +115,12 @@ def integrated_time(
     n = next_pow_two(n_t)
     f = np.fft.rfft(y, n=2 * n, axis=-1)
     acf = np.fft.irfft(f * np.conjugate(f), n=2 * n, axis=-1)[..., :n_t]
-    acf /= acf[..., :1]
+    # A constant series (e.g. a walker whose proposals were all rejected)
+    # has zero variance, making the normalization 0/0. Let the NaN
+    # propagate to the estimate silently; the non-convergence check below
+    # reports it explicitly.
+    with np.errstate(invalid="ignore"):
+        acf /= acf[..., :1]
     taus = 2.0 * np.cumsum(np.mean(acf, axis=0), axis=-1) - 1.0
 
     tau_est = np.empty(n_d)
@@ -121,8 +129,9 @@ def integrated_time(
         windows[d] = auto_window(taus[d], c)
         tau_est[d] = taus[d, windows[d]]
 
-    # Check convergence
-    flag = tol * tau_est > n_t
+    # Check convergence. The negated comparison keeps NaN estimates
+    # (undefined autocorrelation of a constant series) flagged.
+    flag = ~(tol * tau_est <= n_t)
 
     # Warn or raise in the case of non-convergence
     if np.any(flag):
@@ -132,6 +141,12 @@ def integrated_time(
             "this estimate with caution and run a longer chain!\n"
         )
         msg += f"N/{tol} = {n_t / tol:.0f};\ntau: {tau_est}"
+        if np.any(np.isnan(tau_est)):
+            msg = (
+                "The autocorrelation time is undefined (NaN) for the "
+                "parameter(s) where at least one walker's chain is "
+                "constant.\n"
+            ) + msg
         if not quiet:
             raise AutocorrError(tau_est, msg)
         logger.warning(msg)
