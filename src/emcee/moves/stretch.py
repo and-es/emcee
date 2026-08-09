@@ -41,4 +41,11 @@ class StretchMove(RedBlueMove):
         zz = ((self.a - 1.0) * random.random(Ns) + 1) ** 2.0 / self.a
         factors = (ndim - 1.0) * np.log(zz)
         rint = random.integers(Nc, size=(Ns,))
-        return c[rint] - (c[rint] - s) * zz[:, None], factors
+        # Compute c[rint] - (c[rint] - s) * zz in-place: gathering c[rint]
+        # once and reusing its buffer measures faster than the naive
+        # expression across ensemble sizes.
+        q = c[rint]
+        tmp = q - s
+        tmp *= zz[:, None]
+        q -= tmp
+        return q, factors
