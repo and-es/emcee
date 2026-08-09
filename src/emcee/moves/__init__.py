@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from .de import DEMove
 from .de_snooker import DESnookerMove
 from .gaussian import GaussianMove

@@ -1,11 +1,10 @@
-# -*- coding: utf-8 -*-
-
+from .utils import deprecation_warning
 
 try:
     from schwimmbad import MPIPool
 except ImportError:
 
-    class MPIPool(object):
+    class MPIPool:
         def __init__(self, *args, **kwargs):
             raise ImportError(
                 "The MPIPool from emcee has been forked to "
@@ -15,3 +14,9 @@ except ImportError:
 
 
 __all__ = ["MPIPool"]
+
+deprecation_warning(
+    "The 'emcee.mpi_pool' module is deprecated and will be removed in "
+    "the next major version; use the 'schwimmbad' package "
+    "(https://github.com/adrn/schwimmbad) instead"
+)

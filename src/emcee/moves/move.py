@@ -1,31 +1,68 @@
-# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from ..model import Model
+    from ..state import State
 
 __all__ = ["Move"]
 
 
-class Move(object):
-    def tune(self, state, accepted):
+class Move:
+    def propose(self, model: Model, state: State) -> tuple[State, np.ndarray]:
+        """Use the move to generate a proposal and compute the acceptance
+
+        Args:
+            model (Model): The model functions and random number generator
+                used to compute the proposal.
+            state (State): The current state of the ensemble.
+
+        Returns:
+            A tuple of the updated :class:`State` and a vector of booleans
+            indicating which walkers were accepted.
+
+        """
+        raise NotImplementedError(
+            "The proposal must be implemented by subclasses"
+        )
+
+    def tune(self, state: State, accepted: np.ndarray) -> None:
         pass
 
-    def update(self, old_state, new_state, accepted, subset=None):
+    def update(
+        self,
+        old_state: State,
+        new_state: State,
+        accepted: np.ndarray,
+        subset: np.ndarray | None = None,
+    ) -> State:
         """Update a given subset of the ensemble with an accepted proposal
 
         Args:
-            coords: The original ensemble coordinates.
-            log_probs: The original log probabilities of the walkers.
-            blobs: The original blobs.
-            new_coords: The proposed coordinates.
-            new_log_probs: The proposed log probabilities.
-            new_blobs: The proposed blobs.
-            accepted: A vector of booleans indicating which walkers were
-                accepted.
+            old_state (State): The state of the ensemble before the proposal.
+                It is updated in place with the accepted proposals.
+            new_state (State): The proposed state for the walkers selected by
+                ``subset``.
+            accepted: A vector of booleans, over the full ensemble, indicating
+                which walkers were accepted.
             subset (Optional): A boolean mask indicating which walkers were
                 included in the subset. This can be used, for example, when
                 updating only the primary ensemble in a :class:`RedBlueMove`.
 
+        Returns:
+            State: The updated ensemble state (the same object as
+            ``old_state``).
+
         """
+        if old_state.log_prob is None or new_state.log_prob is None:
+            raise ValueError(
+                "states with computed log probabilities are required "
+                "to update the ensemble"
+            )
+
         if subset is None:
             subset = np.ones(len(old_state.coords), dtype=bool)
         m1 = subset & accepted

@@ -7,20 +7,20 @@ emcee
     :target: https://github.com/dfm/emcee
 .. image:: https://github.com/dfm/emcee/workflows/Tests/badge.svg
     :target: https://github.com/dfm/emcee/actions?query=workflow%3ATests
-.. image:: http://img.shields.io/badge/license-MIT-blue.svg?style=flat
+.. image:: https://img.shields.io/badge/license-MIT-blue.svg?style=flat
     :target: https://github.com/dfm/emcee/blob/main/LICENSE
-.. image:: http://img.shields.io/badge/arXiv-1202.3665-orange.svg?style=flat
+.. image:: https://img.shields.io/badge/arXiv-1202.3665-orange.svg?style=flat
     :target: https://arxiv.org/abs/1202.3665
 .. image:: https://coveralls.io/repos/github/dfm/emcee/badge.svg?branch=main&style=flat&v=2
     :target: https://coveralls.io/github/dfm/emcee?branch=main
 .. image:: https://readthedocs.org/projects/emcee/badge/?version=latest
-    :target: http://emcee.readthedocs.io/en/latest/?badge=latest
+    :target: https://emcee.readthedocs.io/en/latest/?badge=latest
 
 
 emcee is a stable, well tested Python implementation of the affine-invariant
 ensemble sampler for Markov chain Monte Carlo (MCMC)
 proposed by
-`Goodman & Weare (2010) <http://cims.nyu.edu/~weare/papers/d13.pdf>`_.
+`Goodman & Weare (2010) <https://msp.org/camcos/2010/5-1/p04.xhtml>`_.
 The code is open source and has
 already been used in several published projects in the Astrophysics
 literature.
@@ -28,7 +28,7 @@ literature.
 Documentation
 -------------
 
-Read the docs at `emcee.readthedocs.io <http://emcee.readthedocs.io/>`_.
+Read the docs at `emcee.readthedocs.io <https://emcee.readthedocs.io/>`_.
 
 Attribution
 -----------
@@ -51,7 +51,7 @@ research. The BibTeX entry for the paper is::
 License
 -------
 
-Copyright 2010-2021 Dan Foreman-Mackey and contributors.
+Copyright 2010-2026 Dan Foreman-Mackey and contributors.
 
 emcee is free software made available under the MIT License. For details see
 the LICENSE file.

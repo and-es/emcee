@@ -1,9 +1,14 @@
-# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ..state import State
 from .move import Move
+
+if TYPE_CHECKING:
+    from ..model import Model
 
 __all__ = ["RedBlueMove"]
 
@@ -34,30 +39,57 @@ class RedBlueMove(Move):
 
     """
 
+    nsplits: int
+    live_dangerously: bool
+    randomize_split: bool
+
     def __init__(
-        self, nsplits=2, randomize_split=True, live_dangerously=False
-    ):
+        self,
+        nsplits: int = 2,
+        randomize_split: bool = True,
+        live_dangerously: bool = False,
+    ) -> None:
         self.nsplits = int(nsplits)
         self.live_dangerously = live_dangerously
         self.randomize_split = randomize_split
 
-    def setup(self, coords):
+    def setup(self, coords: np.ndarray) -> None:
         pass
 
-    def get_proposal(self, sample, complement, random):
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Generate a proposal for a sub-ensemble
+
+        Args:
+            sample: The coordinates of the walkers being updated.
+            complement: A list of coordinate arrays, one per complementary
+                sub-ensemble.
+            random: A ``numpy.random.Generator`` instance.
+
+        Returns:
+            A tuple of the proposed coordinates and a vector of the
+            log-ratios of the proposal probabilities.
+
+        """
         raise NotImplementedError(
-            "The proposal must be implemented by " "subclasses"
+            "The proposal must be implemented by subclasses"
         )
 
-    def propose(self, model, state):
+    def propose(self, model: Model, state: State) -> tuple[State, np.ndarray]:
         """Use the move to generate a proposal and compute the acceptance
 
         Args:
-            coords: The initial coordinates of the walkers.
-            log_probs: The initial log probabilities of the walkers.
-            log_prob_fn: A function that computes the log probabilities for a
-                subset of walkers.
-            random: A numpy-compatible random number state.
+            model (Model): The model functions and random number generator
+                used to compute the proposal.
+            state (State): The current state of the ensemble.
+
+        Returns:
+            A tuple of the updated :class:`State` and a vector of booleans
+            indicating which walkers were accepted.
 
         """
         # Check that the dimensions are compatible.
@@ -68,21 +100,29 @@ class RedBlueMove(Move):
                 "with fewer walkers than twice the number of "
                 "dimensions."
             )
+        if state.log_prob is None:
+            raise ValueError(
+                "a state with computed log probabilities is required "
+                "to generate a proposal"
+            )
 
         # Run any move-specific setup.
         self.setup(state.coords)
 
         # Split the ensemble in half and iterate over these two halves.
         accepted = np.zeros(nwalkers, dtype=bool)
-        all_inds = np.arange(nwalkers)
-        inds = all_inds % self.nsplits
+        inds = np.arange(nwalkers) % self.nsplits
         if self.randomize_split:
             model.random.shuffle(inds)
+        # The masks are loop-invariant, and the coordinate sets only
+        # change where accepted proposals are written back, so build the
+        # sets once and patch the updated half in place after each split
+        masks = [inds == j for j in range(self.nsplits)]
+        sets = [state.coords[m] for m in masks]
         for split in range(self.nsplits):
-            S1 = inds == split
+            S1 = masks[split]
 
             # Get the two halves of the ensemble.
-            sets = [state.coords[inds == j] for j in range(self.nsplits)]
             s = sets[split]
             c = sets[:split] + sets[split + 1 :]
 
@@ -92,15 +132,18 @@ class RedBlueMove(Move):
             # Compute the lnprobs of the proposed position.
             new_log_probs, new_blobs = model.compute_log_prob_fn(q)
 
-            # Loop over the walkers and update them accordingly.
-            for i, (j, f, nlp) in enumerate(
-                zip(all_inds[S1], factors, new_log_probs)
-            ):
-                lnpdiff = f + nlp - state.log_prob[j]
-                if lnpdiff > np.log(model.random.rand()):
-                    accepted[j] = True
+            # Decide the acceptance for each walker in the split.
+            lnpdiff = factors + new_log_probs - state.log_prob[S1]
+            accepted[S1] = lnpdiff > np.log(model.random.random(len(lnpdiff)))
 
             new_state = State(q, log_prob=new_log_probs, blobs=new_blobs)
             state = self.update(state, new_state, accepted, S1)
+
+            # Keep the cached half consistent with ``state.coords`` for
+            # the remaining splits; boolean indexing preserves row order,
+            # so this writes exactly the rows ``update`` just accepted
+            if split + 1 < self.nsplits:
+                m2 = accepted[S1]
+                sets[split][m2] = q[m2]
 
         return state, accepted

@@ -58,7 +58,7 @@ This can be implemented something like:
         # and log prior. Log prior will be saved as part of the blobs.
         return lp + ll, lp
 
-    coords = np.random.randn(32, 3)
+    coords = np.random.default_rng(42).standard_normal((32, 3))
     nwalkers, ndim = coords.shape
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob)
     sampler.run_mcmc(coords, 100)
@@ -107,7 +107,7 @@ To do this, we would update the above example as follows:
         # probability, log prior and mean of parameters)
         return lp + ll, lp, np.mean(params)
 
-    coords = np.random.randn(32, 3)
+    coords = np.random.default_rng(42).standard_normal((32, 3))
     nwalkers, ndim = coords.shape
 
     # Here are the important lines for defining the blobs_dtype

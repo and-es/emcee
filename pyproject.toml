@@ -1,42 +1,116 @@
 [build-system]
-requires = ["setuptools>=40.6.0", "wheel", "setuptools_scm"]
+requires = ["setuptools>=77", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
-[tool.black]
-line-length = 79
-exclude = '''
-/(
-    \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
+[project]
+name = "emcee"
+description = "The Python ensemble sampling toolkit for MCMC"
+readme = "README.rst"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Daniel Foreman-Mackey", email = "foreman.mackey@gmail.com" },
+]
+maintainers = [
+    { name = "Daniel Foreman-Mackey", email = "foreman.mackey@gmail.com" },
+]
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0"]
+dynamic = ["version"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+]
 
-[tool.isort]
-line_length = 79
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-known_third_party = ["h5py", "matplotlib", "numpy", "pkg_resources", "pytest", "setuptools"]
+[project.urls]
+Homepage = "https://emcee.readthedocs.io"
+Source = "https://github.com/dfm/emcee"
+
+[project.optional-dependencies]
+extras = ["h5py", "scipy", "tqdm", "ipywidgets"]
+tests = ["pytest", "pytest-cov", "coverage[toml]"]
+# Notebooks are not executed at build time (nb_execution_mode = "off" in
+# docs/conf.py), so only the packages needed by Sphinx itself and by
+# autodoc imports of emcee (scipy for KDEMove, h5py for HDFBackend) are
+# listed. The pins only support Python 3.12+, while the project itself
+# still runs on 3.11; the markers keep the 3.11 resolution solvable
+# (docs are built on Python 3.13, see .readthedocs.yaml).
+docs = [
+    "sphinx==9.1.0; python_version >= '3.12'",
+    "sphinx-book-theme==1.2.0; python_version >= '3.12'",
+    "myst-nb==1.4.0; python_version >= '3.12'",
+    "ipython==9.15.0; python_version >= '3.12'",
+    "scipy==1.18.0; python_version >= '3.12'",
+    "h5py==3.16.0; python_version >= '3.12'",
+]
+
+[dependency-groups]
+dev = ["ty", "pre-commit", "coverage[toml]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+emcee = ["py.typed"]
+
+[tool.setuptools_scm]
+version_file = "src/emcee/emcee_version.py"
+version_file_template = "__version__ = \"{version}\"\n"
+
+[tool.uv]
+# The version comes from setuptools_scm, so the cached build of the
+# project must be invalidated when the git state changes, not only when
+# pyproject.toml does.
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+
+[tool.pytest.ini_options]
+testpaths = ["src/emcee/tests"]
+filterwarnings = ["error::DeprecationWarning"]
+
+[tool.ty.src]
+include = ["src"]
+# emcee 2.x compatibility shims kept only for backwards compatibility;
+# they import optional packages that are not part of any extra.
+exclude = [
+    "src/emcee/interruptible_pool.py",
+    "src/emcee/mpi_pool.py",
+    "src/emcee/ptsampler.py",
+]
+
+[tool.ruff]
+line-length = 79
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tutorial notebooks are formatted but not linted (parity with the old
+# isort hook, which excluded them).
+"docs/tutorials/*" = ["ALL"]
+# Contains an unbreakable URL inside a docstring, where `# noqa` cannot
+# be applied.
+"src/emcee/autocorr.py" = ["E501"]
 
 [tool.coverage.run]
 parallel = true
 branch = true
 source = ["emcee"]
 omit = [
-    "emcee/interruptible_pool.py",
-    "emcee/mpi_pool.py",
-    "emcee/ptsampler.py",
-    "docs/*",
-    "tests/*",
+    "*/emcee/interruptible_pool.py",
+    "*/emcee/mpi_pool.py",
+    "*/emcee/ptsampler.py",
+    "*/emcee/tests/*",
     "*__init__*"
 ]
 
@@ -45,6 +119,7 @@ source = ["src", "*/site-packages"]
 
 [tool.coverage.report]
 show_missing = true
+fail_under = 95
 exclude_lines = [
     "pragma: no cover",
     "raise NotImplementedError",
@@ -52,8 +127,9 @@ exclude_lines = [
     "except ImportError",
     "def __len__",
     "def __repr__",
-    "logging.warning",
-    "deprecation_warning",
-    "deprecated",
-    "if tqdm is None"
+    "@deprecated",
+    'deprecation_warning\(',
+    "if tqdm is None",
+    "if TYPE_CHECKING:",
+    'class .*\bProtocol\):',
 ]

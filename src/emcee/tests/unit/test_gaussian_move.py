@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
 
 from emcee.moves import GaussianMove
@@ -16,8 +14,8 @@ def test_full_covariance_proposal_is_independent_per_walker():
     cov = np.array([[1.0, 0.3], [0.3, 1.0]])
     move = GaussianMove(cov, mode="vector")
 
-    rng = np.random.RandomState(0)
-    x0 = np.random.RandomState(1).randn(nwalkers, ndim)
+    rng = np.random.default_rng(0)
+    x0 = np.random.default_rng(1).standard_normal((nwalkers, ndim))
 
     xnew, factors = move.get_proposal(x0, rng)
 

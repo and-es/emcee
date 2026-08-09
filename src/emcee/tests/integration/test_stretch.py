@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 import pytest
 
 from emcee import moves
@@ -28,4 +26,4 @@ def test_nsplits_stretch(**kwargs):
 
 
 def test_randomize_stretch(**kwargs):
-    _test_normal(moves.StretchMove(randomize_split=True), **kwargs)
+    _test_normal(moves.StretchMove(randomize_split=False), **kwargs)

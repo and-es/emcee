@@ -1,7 +1,8 @@
-# -*- coding: utf-8 -*-
+from __future__ import annotations
 
 import importlib
 import logging
+from typing import Any, Protocol, Self
 
 __all__ = ["get_progress_bar"]
 
@@ -11,36 +12,49 @@ try:
     import tqdm
     import tqdm.auto
 except ImportError:
-    tqdm = None
+    tqdm = None  # ty: ignore[invalid-assignment]
 
 
-class _NoOpPBar(object):
+class ProgressBar(Protocol):
+    """The interface of the progress bars used by the sampler"""
+
+    def __enter__(self) -> Self: ...
+
+    def __exit__(
+        self, exc_type: object, exc_value: object, traceback: object, /
+    ) -> object: ...
+
+    def update(self, n: int, /) -> object: ...
+
+
+class _NoOpPBar:
     """This class implements the progress bar interface but does nothing"""
 
-    def __init__(self):
-        pass
-
-    def __enter__(self, *args, **kwargs):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *args, **kwargs):
+    def __exit__(self, *args: object) -> None:
         pass
 
-    def update(self, count):
+    def update(self, count: int) -> None:
         pass
 
 
-def get_progress_bar(display, total, **kwargs):
+def get_progress_bar(
+    display: bool | str, total: int | None, **kwargs: Any
+) -> ProgressBar:
     """Get a progress bar interface with given properties
 
     If the tqdm library is not installed, this will always return a "progress
     bar" that does nothing.
 
     Args:
-        display (bool or str): Should the bar actually show the progress? Or a
-                               string to indicate which tqdm bar (subomdule) to use.
+        display (bool or str): Should the bar actually show the progress? Or
+                               a string to indicate which tqdm bar
+                               (submodule) to use.
         total (int): The total size of the progress bar.
-        kwargs (dict): Optional keyword arguments to be passed to the tqdm call.
+        kwargs (dict): Optional keyword arguments to be passed to the tqdm
+                       call.
 
     """
     if display:

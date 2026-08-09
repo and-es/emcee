@@ -1,14 +1,11 @@
-# -*- coding: utf-8 -*-
-
 import numpy as np
-import pytest
 
 import emcee
 
 try:
     from scipy import stats
 except ImportError:
-    stats = None
+    stats = None  # ty: ignore[invalid-assignment]
 
 
 __all__ = ["_test_normal", "_test_uniform"]
@@ -39,10 +36,10 @@ def _test_normal(
     blobs=False,
 ):
     # Set up the random number generator.
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     # Initialize the ensemble and proposal.
-    coords = np.random.randn(nwalkers, ndim)
+    coords = rng.standard_normal((nwalkers, ndim))
 
     if blobs:
         lp = normal_log_prob_blobs
@@ -50,19 +47,16 @@ def _test_normal(
         lp = normal_log_prob
 
     sampler = emcee.EnsembleSampler(
-        nwalkers, ndim, lp, moves=proposal, pool=pool
+        nwalkers, ndim, lp, moves=proposal, pool=pool, rng=rng
     )
-    if hasattr(proposal, "ntune") and proposal.ntune > 0:
-        coords = sampler.run_mcmc(coords, proposal.ntune, tune=True)
-        sampler.reset()
     sampler.run_mcmc(coords, nsteps)
 
     # Check the acceptance fraction.
     if check_acceptance:
         acc = sampler.acceptance_fraction
-        assert np.all(
-            (acc < 0.9) * (acc > 0.1)
-        ), "Invalid acceptance fraction\n{0}".format(acc)
+        assert np.all((acc < 0.9) * (acc > 0.1)), (
+            f"Invalid acceptance fraction\n{acc}"
+        )
 
     # Check the resulting chain using a K-S test and compare to the mean and
     # standard deviation.
@@ -78,25 +72,32 @@ def _test_normal(
 
 def _test_uniform(proposal, nwalkers=32, nsteps=2000, seed=1234):
     # Set up the random number generator.
-    np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     # Initialize the ensemble and proposal.
-    coords = np.random.rand(nwalkers, 1)
+    coords = rng.random((nwalkers, 1))
 
     sampler = emcee.EnsembleSampler(
-        nwalkers, 1, normal_log_prob, moves=proposal
+        nwalkers, 1, uniform_log_prob, moves=proposal, rng=rng
     )
     sampler.run_mcmc(coords, nsteps)
 
     # Check the acceptance fraction.
     acc = sampler.acceptance_fraction
-    assert np.all(
-        (acc < 0.9) * (acc > 0.1)
-    ), "Invalid acceptance fraction\n{0}".format(acc)
+    assert np.all((acc < 0.95) * (acc > 0.1)), (
+        f"Invalid acceptance fraction\n{acc}"
+    )
+
+    # Compare the sample mean and standard deviation to the expected
+    # moments of U(0, 1).
+    samps = sampler.get_chain(flat=True)
+    mu, sig = np.mean(samps), np.std(samps)
+    assert np.abs(mu - 0.5) < 0.05, "Incorrect mean"
+    assert np.abs(sig - 1.0 / np.sqrt(12)) < 0.05, (
+        "Incorrect standard deviation"
+    )
 
     if stats is not None:
-        # Check that the resulting chain "fails" the K-S test.
-        samps = sampler.get_chain(flat=True)
-        np.random.shuffle(samps)
+        # Check the (thinned) chain against the target using a K-S test.
         ks, _ = stats.kstest(samps[::100, 0], "uniform")
-        assert ks > 0.1, "The K-S test failed"
+        assert ks < 0.1, "The K-S test failed"

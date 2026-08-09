@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
-
 __bibtex__ = """
 @article{emcee,
-   author = {{Foreman-Mackey}, D. and {Hogg}, D.~W. and {Lang}, D. and {Goodman}, J.},
+   author = {{Foreman-Mackey}, D. and {Hogg}, D.~W. and {Lang}, D. and
+             {Goodman}, J.},
     title = {emcee: The MCMC Hammer},
   journal = {PASP},
      year = 2013,

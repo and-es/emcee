@@ -42,10 +42,13 @@ something like:
         return -0.5 * np.sum(ivar * x ** 2)
 
     ndim, nwalkers = 5, 100
-    ivar = 1. / np.random.rand(ndim)
-    p0 = np.random.randn(nwalkers, ndim)
+    rng = np.random.default_rng(42)
+    ivar = 1. / rng.random(ndim)
+    p0 = rng.standard_normal((nwalkers, ndim))
 
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[ivar])
+    sampler = emcee.EnsembleSampler(
+        nwalkers, ndim, log_prob, args=[ivar], rng=rng
+    )
     sampler.run_mcmc(p0, 10000)
 
 A more complete example is available in the :ref:`quickstart` tutorial.
@@ -98,7 +101,7 @@ If you have a question about the use of emcee, please post it to `the users list
 License & Attribution
 ---------------------
 
-Copyright 2010-2021 Dan Foreman-Mackey and `contributors <https://github.com/dfm/emcee/graphs/contributors>`_.
+Copyright 2010-2026 Dan Foreman-Mackey and `contributors <https://github.com/dfm/emcee/graphs/contributors>`_.
 
 emcee is free software made available under the MIT License. For details
 see the ``LICENSE``.

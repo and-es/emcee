@@ -59,6 +59,15 @@ source repository and install from there
     cd emcee
     python -m pip install -e .
 
+For development, the project uses `uv <https://docs.astral.sh/uv/>`_, which
+sets up an environment with all development dependencies in one step:
+
+.. code-block:: bash
+
+    git clone https://github.com/dfm/emcee.git
+    cd emcee
+    uv sync --all-extras
+
 
 Test the installation
 ---------------------

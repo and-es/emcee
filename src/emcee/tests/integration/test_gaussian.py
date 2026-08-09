@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 from itertools import product
 
 import numpy as np
@@ -16,13 +14,16 @@ __all__ = [
 ]
 
 
-@pytest.mark.parametrize("mode,factor", product(["vector"], [None, 2.0, 5.0]))
+@pytest.mark.parametrize(
+    "mode,factor", list(product(["vector"], [None, 2.0, 5.0]))
+)
 def test_normal_gaussian(mode, factor, **kwargs):
     _test_normal(moves.GaussianMove(0.5, mode=mode, factor=factor), **kwargs)
 
 
 @pytest.mark.parametrize(
-    "mode,factor", product(["vector", "random", "sequential"], [None, 2.0])
+    "mode,factor",
+    list(product(["vector", "random", "sequential"], [None, 2.0])),
 )
 def test_normal_gaussian_nd(mode, factor, **kwargs):
     ndim = 3
@@ -74,6 +75,8 @@ def test_normal_gaussian_nd(mode, factor, **kwargs):
             )
 
 
-@pytest.mark.parametrize("mode,factor", product(["vector"], [None, 2.0, 5.0]))
+@pytest.mark.parametrize(
+    "mode,factor", list(product(["vector"], [None, 2.0, 5.0]))
+)
 def test_uniform_gaussian(mode, factor, **kwargs):
     _test_uniform(moves.GaussianMove(0.5, factor=factor, mode=mode), **kwargs)

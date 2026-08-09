@@ -1,10 +1,21 @@
-# -*- coding: utf-8 -*-
+from __future__ import annotations
 
-from collections import namedtuple
+from typing import TYPE_CHECKING, Any, NamedTuple
+
+import numpy as np
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
 
 __all__ = ["Model"]
 
 
-Model = namedtuple(
-    "Model", ("log_prob_fn", "compute_log_prob_fn", "map_fn", "random")
-)
+class Model(NamedTuple):
+    """The model functions and random number generator used by the moves"""
+
+    log_prob_fn: Callable[[Any], Any] | None
+    compute_log_prob_fn: Callable[
+        [np.ndarray], tuple[np.ndarray, np.ndarray | None]
+    ]
+    map_fn: Callable[..., Iterable[Any]]
+    random: np.random.Generator

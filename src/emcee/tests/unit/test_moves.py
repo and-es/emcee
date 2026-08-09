@@ -1,0 +1,105 @@
+import numpy as np
+import pytest
+
+from emcee import moves
+from emcee.model import Model
+from emcee.moves.move import Move
+from emcee.state import State
+
+__all__ = [
+    "test_update_requires_matching_blobs",
+    "test_update_requires_log_prob",
+    "test_propose_requires_log_prob",
+    "test_gaussian_invalid_cov_shape",
+    "test_gaussian_invalid_factor",
+    "test_de_pairs_are_distinct",
+    "test_walk_invalid_s",
+]
+
+
+def test_update_requires_matching_blobs():
+    old = State(np.zeros((4, 2)), log_prob=np.zeros(4))
+    new = State(np.ones((4, 2)), log_prob=np.ones(4), blobs=np.ones(4))
+    accepted = np.ones(4, dtype=bool)
+    with pytest.raises(ValueError, match="current list of blobs"):
+        Move().update(old, new, accepted)
+
+
+def test_update_requires_log_prob():
+    old = State(np.zeros((4, 2)))
+    new = State(np.ones((4, 2)), log_prob=np.ones(4))
+    accepted = np.ones(4, dtype=bool)
+    with pytest.raises(ValueError, match="computed log probabilities"):
+        Move().update(old, new, accepted)
+
+
+@pytest.mark.parametrize(
+    "move",
+    [
+        moves.StretchMove(),
+        moves.MHMove(lambda coords, rng: (coords, np.zeros(len(coords)))),
+    ],
+)
+def test_propose_requires_log_prob(move):
+    model = Model(
+        None,
+        lambda x: (np.zeros(len(x)), None),
+        map,
+        np.random.default_rng(0),
+    )
+    state = State(np.zeros((10, 2)))
+    with pytest.raises(ValueError, match="computed log probabilities"):
+        move.propose(model, state)
+
+
+def test_gaussian_invalid_cov_shape():
+    # A non-square matrix...
+    with pytest.raises(ValueError, match="Invalid proposal scale dimensions"):
+        moves.GaussianMove(np.zeros((2, 3)))
+
+    # ... and too many dimensions are both invalid.
+    with pytest.raises(ValueError, match="Invalid proposal scale dimensions"):
+        moves.GaussianMove(np.zeros((2, 2, 2)))
+
+
+def test_gaussian_invalid_factor():
+    with pytest.raises(ValueError, match="'factor' must be >= 1.0"):
+        moves.GaussianMove(1.0, factor=0.5)
+
+
+@pytest.mark.parametrize("s", [0, 1, 17])
+def test_walk_invalid_s(s):
+    # 's' larger than the complement or too small to define a covariance
+    # must fail with an explicit error.
+    rng = np.random.default_rng(0)
+    sample = rng.standard_normal((8, 2))
+    complement = [rng.standard_normal((16, 2))]
+    with pytest.raises(ValueError, match="'s' must be between 2 and"):
+        moves.WalkMove(s=s).get_proposal(sample, complement, rng)
+
+
+@pytest.mark.filterwarnings("error")
+def test_de_snooker_degenerate_walker():
+    # A walker that coincides with its picked complementary walker has
+    # no snooker direction; it must stay in place with a forced
+    # rejection instead of dividing by zero into a NaN proposal.
+    rng = np.random.default_rng(0)
+    sample = np.zeros((3, 2))
+    complement = [np.zeros((3, 2)) for _ in range(3)]
+    q, factors = moves.DESnookerMove().get_proposal(sample, complement, rng)
+    assert np.array_equal(q, sample)
+    assert np.all(factors == -np.inf)
+
+
+def test_de_pairs_are_distinct():
+    # The difference vector must always come from two distinct
+    # complementary walkers: with a two-walker complement and sigma=0
+    # every proposal is exactly g0 away from the start, never 0.
+    rng = np.random.default_rng(0)
+    move = moves.DEMove(sigma=0.0)
+    move.setup(np.zeros((4, 1)))
+    sample = np.zeros((512, 1))
+    complement = [np.array([[0.0], [1.0]])]
+    q, factors = move.get_proposal(sample, complement, rng)
+    assert np.all(np.abs(q) == move.g0)
+    assert np.all(factors == 0.0)

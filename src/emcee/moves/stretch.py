@@ -1,4 +1,6 @@
-# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+from typing import Any
 
 import numpy as np
 
@@ -14,20 +16,36 @@ class StretchMove(RedBlueMove):
     parallelization as described in `Foreman-Mackey et al. (2013)
     <https://arxiv.org/abs/1202.3665>`_.
 
-    :param a: (optional)
-        The stretch scale parameter. (default: ``2.0``)
+    Args:
+        a (Optional[float]): The stretch scale parameter.
+            (default: ``2.0``)
 
     """
 
-    def __init__(self, a=2.0, **kwargs):
-        self.a = a
-        super(StretchMove, self).__init__(**kwargs)
+    a: float
 
-    def get_proposal(self, s, c, random):
-        c = np.concatenate(c, axis=0)
+    def __init__(self, a: float = 2.0, **kwargs: Any) -> None:
+        self.a = a
+        super().__init__(**kwargs)
+
+    def get_proposal(
+        self,
+        sample: np.ndarray,
+        complement: list[np.ndarray],
+        random: np.random.Generator,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        s = sample
+        c = np.concatenate(complement, axis=0)
         Ns, Nc = len(s), len(c)
         ndim = s.shape[1]
-        zz = ((self.a - 1.0) * random.rand(Ns) + 1) ** 2.0 / self.a
+        zz = ((self.a - 1.0) * random.random(Ns) + 1) ** 2.0 / self.a
         factors = (ndim - 1.0) * np.log(zz)
-        rint = random.randint(Nc, size=(Ns,))
-        return c[rint] - (c[rint] - s) * zz[:, None], factors
+        rint = random.integers(Nc, size=(Ns,))
+        # Compute c[rint] - (c[rint] - s) * zz in-place: gathering c[rint]
+        # once and reusing its buffer measures faster than the naive
+        # expression across ensemble sizes.
+        q = c[rint]
+        tmp = q - s
+        tmp *= zz[:, None]
+        q -= tmp
+        return q, factors

@@ -20,7 +20,7 @@ class TestNP2ListOfDicts(TestCase):
             key_dict = {key: i for i, key in enumerate(keys)}
             # Try different number of walker/procs
             for N in [1, 2, 3, 10, 100]:
-                x = np.random.rand(N, n_keys)
+                x = np.random.default_rng(1234).random((N, n_keys))
 
                 LOD = ndarray_to_list_of_dicts(x, key_dict)
                 assert len(LOD) == N, "need 1 dict per row"
@@ -37,7 +37,7 @@ class TestNamedParameters(TestCase):
     """
 
     # Keyword based lnpdf
-    def lnpdf(self, pars) -> np.float64:
+    def lnpdf(self, pars):
         mean = pars["mean"]
         var = pars["var"]
         if var <= 0:
@@ -46,7 +46,7 @@ class TestNamedParameters(TestCase):
             -0.5 * ((mean - self.x) ** 2 / var + np.log(2 * np.pi * var)).sum()
         )
 
-    def lnpdf_mixture(self, pars) -> np.float64:
+    def lnpdf_mixture(self, pars):
         mean1 = pars["mean1"]
         var1 = pars["var1"]
         mean2 = pars["mean2"]
@@ -63,7 +63,7 @@ class TestNamedParameters(TestCase):
             ).sum()
         )
 
-    def lnpdf_mixture_grouped(self, pars) -> np.float64:
+    def lnpdf_mixture_grouped(self, pars):
         mean1, mean2 = pars["means"]
         var1, var2 = pars["vars"]
         const = pars["constant"]
@@ -82,7 +82,8 @@ class TestNamedParameters(TestCase):
 
     def setUp(self):
         # Draw some data from a unit Gaussian
-        self.x = np.random.randn(100)
+        self.rng = np.random.default_rng(1234)
+        self.x = self.rng.standard_normal(100)
         self.names = ["mean", "var"]
 
     def test_named_parameters(self):
@@ -95,9 +96,18 @@ class TestNamedParameters(TestCase):
         assert sampler.params_are_named
         assert list(sampler.parameter_names.keys()) == self.names
 
-    def test_asserts(self):
+    def test_validation(self):
+        # wrong type
+        with pytest.raises(TypeError, match="list or dict"):
+            _ = EnsembleSampler(
+                nwalkers=10,
+                ndim=len(self.names),
+                log_prob_fn=self.lnpdf,
+                parameter_names=42,  # ty: ignore[invalid-argument-type]
+            )
+
         # ndim name mismatch
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="name all parameters"):
             _ = EnsembleSampler(
                 nwalkers=10,
                 ndim=len(self.names) - 1,
@@ -106,7 +116,7 @@ class TestNamedParameters(TestCase):
             )
 
         # duplicate names
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="duplicate parameters"):
             _ = EnsembleSampler(
                 nwalkers=10,
                 ndim=3,
@@ -115,13 +125,31 @@ class TestNamedParameters(TestCase):
             )
 
         # vectorize turned on
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match="vectorization unsupported"):
             _ = EnsembleSampler(
                 nwalkers=10,
                 ndim=len(self.names),
                 log_prob_fn=self.lnpdf,
                 parameter_names=self.names,
                 vectorize=True,
+            )
+
+        # too many names in a dict
+        with pytest.raises(ValueError, match="too many names"):
+            _ = EnsembleSampler(
+                nwalkers=10,
+                ndim=2,
+                log_prob_fn=self.lnpdf,
+                parameter_names={"a": 0, "b": 1, "c": 1},
+            )
+
+        # not all indices covered by a dict
+        with pytest.raises(ValueError, match="not all values appear"):
+            _ = EnsembleSampler(
+                nwalkers=10,
+                ndim=3,
+                log_prob_fn=self.lnpdf,
+                parameter_names={"a": 0, "b": 2},
             )
 
     def test_compute_log_prob(self):
@@ -133,7 +161,7 @@ class TestNamedParameters(TestCase):
                 log_prob_fn=self.lnpdf,
                 parameter_names=self.names,
             )
-            coords = np.random.rand(N, len(self.names))
+            coords = self.rng.random((N, len(self.names)))
             lnps, _ = sampler.compute_log_prob(coords)
             assert len(lnps) == N
             assert lnps.dtype == np.float64
@@ -148,7 +176,7 @@ class TestNamedParameters(TestCase):
                 log_prob_fn=self.lnpdf_mixture,
                 parameter_names=names,
             )
-            coords = np.random.rand(N, len(names))
+            coords = self.rng.random((N, len(names)))
             lnps, _ = sampler.compute_log_prob(coords)
             assert len(lnps) == N
             assert lnps.dtype == np.float64
@@ -163,7 +191,7 @@ class TestNamedParameters(TestCase):
                 log_prob_fn=self.lnpdf_mixture_grouped,
                 parameter_names=names,
             )
-            coords = np.random.rand(N, 5)
+            coords = self.rng.random((N, 5))
             lnps, _ = sampler.compute_log_prob(coords)
             assert len(lnps) == N
             assert lnps.dtype == np.float64
@@ -177,12 +205,13 @@ class TestNamedParameters(TestCase):
             log_prob_fn=self.lnpdf,
             parameter_names=self.names,
         )
-        guess = np.random.rand(n_walkers, len(self.names))
+        guess = self.rng.random((n_walkers, len(self.names)))
         n_steps = 50
         results = sampler.run_mcmc(guess, n_steps)
+        assert results is not None
         assert results.coords.shape == (n_walkers, len(self.names))
-        chain = sampler.chain
-        assert chain.shape == (n_walkers, n_steps, len(self.names))
+        chain = sampler.get_chain()
+        assert chain.shape == (n_steps, n_walkers, len(self.names))
 
 
 class TestLnProbFn(TestCase):
