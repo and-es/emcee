@@ -141,5 +141,5 @@ class _proposal(_isotropic_proposal):
         self, rng: np.random.Generator, x0: np.ndarray
     ) -> np.ndarray:
         return x0 + self.get_factor(rng) * rng.multivariate_normal(
-            np.zeros(len(self.scale)), self.scale
+            np.zeros(len(self.scale)), self.scale, size=x0.shape[0]
         )
